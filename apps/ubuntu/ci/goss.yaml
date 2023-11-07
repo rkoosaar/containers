@@ -1,0 +1,17 @@
+---
+group:
+  rkoosaar:
+    exists: true
+    gid: 314
+
+user:
+  rkoosaar:
+    exists: true
+    uid: 314
+    gid: 314
+    groups:
+      - rkoosaar
+
+process:
+  tini:
+    running: true
