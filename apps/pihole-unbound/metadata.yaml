@@ -1,6 +1,6 @@
 ---
 app: pihole-unbound
-base: true
+base: false
 channels:
   - name: "stable"
     platforms:

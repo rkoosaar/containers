@@ -1,7 +1,7 @@
-ARG PIHOLE_VERSION
+ARG VERSION=""
 ARG REVISION=""
 
-FROM pihole/pihole:${PIHOLE_VERSION:-latest}
+FROM ghcr.io/pi-hole/pihole:latest as base
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.name="pihole-unbound"
