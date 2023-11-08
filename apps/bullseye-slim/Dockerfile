@@ -2,7 +2,7 @@ ARG DEBIAN_VERSION=bullseye-slim
 FROM debian:${DEBIAN_VERSION}
 
 ARG DEBIAN_VERSION
-ENV phpver="php"
+# ENV phpver="php"
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.name="rkoosaar/ubuntu"
@@ -12,6 +12,13 @@ LABEL org.label-schema.url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.version=$VERSION
 LABEL org.label-schema.vcs-url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.vcs-ref=$REVISION
+
+USER root
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN adduser rkoosaar --uid 314 --group --system --disabled-password --gecos "" --home /home/rkoosaar
 
