@@ -13,7 +13,13 @@ LABEL org.label-schema.version=$VERSION
 LABEL org.label-schema.vcs-url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.vcs-ref=$REVISION
 
+RUN adduser rkoosaar --uid 314 --group --system --disabled-password --gecos "" --home /home/rkoosaar
 
+RUN mkdir /data && chown rkoosaar:rkoosaar /data
+RUN mkdir /config && chown rkoosaar:rkoosaar /config
+
+VOLUME ["/data", "/config"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # curl in armhf-buster's image has SSL issues. Running c_rehash fixes it.
 # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=923479
@@ -27,16 +33,6 @@ RUN if [ "$DEBIAN_VERSION" = "buster-slim" ]; then c_rehash; fi
 # FROM ubuntu:${VERSION}
 
 # ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND}
-
-# LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
-# LABEL org.label-schema.name="rkoosaar/ubuntu"
-# LABEL org.label-schema.description="Base Image customed for rkoosaar images."
-# LABEL org.label-schema.vendor="rkoosaar"
-# LABEL org.label-schema.url="https://github.com/rkoosaar/containers"
-# LABEL org.label-schema.version=$VERSION
-# LABEL org.label-schema.vcs-url="https://github.com/rkoosaar/containers"
-# LABEL org.label-schema.vcs-ref=$REVISION
-
 # USER root
 
 # RUN set -eux \
@@ -52,10 +48,3 @@ RUN if [ "$DEBIAN_VERSION" = "buster-slim" ]; then c_rehash; fi
 #     dpkg-reconfigure --frontend=noninteractive locales
 
 
-# RUN adduser rkoosaar --uid 314 --group --system --disabled-password --gecos "" --home /home/rkoosaar
-
-# RUN mkdir /data && chown rkoosaar:rkoosaar /data
-# RUN mkdir /config && chown rkoosaar:rkoosaar /config
-
-# VOLUME ["/data", "/config"]
-# ENTRYPOINT ["/usr/bin/tini", "--"]
