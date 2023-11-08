@@ -1,0 +1,21 @@
+---
+file:
+  /etc/lighttpd/external.conf:
+    exists: true
+  /etc/unbound/unbound.conf.d/pi-hole.conf:
+    exists: true
+  /etc/dnsmasq.d/99-edns.conf:
+    exists: true
+  /etc/services.d/unbound/run:
+    exists: true
+
+process:
+  lighthttpd:
+    running: true
+    skip: false
+  pihole-FTL:
+    running: true
+    skip: false
+  unbound:
+    running: true
+    skip: false
