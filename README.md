@@ -49,4 +49,5 @@ All Base Images are configured with a non-root user (`rkoosaar:rkoosaar`), and e
 Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
 [alpine](https://github.com/rkoosaar/containers/pkgs/container/alpine) | 3.18 | ghcr.io/rkoosaar/alpine |![3](https://img.shields.io/badge/3-blue?style=flat-square) ![3.18](https://img.shields.io/badge/3.18-blue?style=flat-square) ![3.18.4](https://img.shields.io/badge/3.18.4-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
+[pihole-unbound](https://github.com/rkoosaar/containers/pkgs/container/pihole-unbound) | stable | ghcr.io/rkoosaar/pihole-unbound |![2023.05.2](https://img.shields.io/badge/2023.05.2-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square) ![main](https://img.shields.io/badge/main-blue?style=flat-square)
 [ubuntu](https://github.com/rkoosaar/containers/pkgs/container/ubuntu) | jammy | ghcr.io/rkoosaar/ubuntu |![jammy-20231004](https://img.shields.io/badge/jammy--20231004-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
