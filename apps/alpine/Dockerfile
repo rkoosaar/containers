@@ -5,7 +5,7 @@ FROM alpine:$VERSION
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.name="rkoosaar/alpine-base"
-LABEL org.label-schema.description="Base Image customed for rkoosaar images."
+LABEL org.label-schema.description="Base Image customised for rkoosaar images."
 LABEL org.label-schema.vendor="rkoosaar"
 LABEL org.label-schema.url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.version=$VERSION
