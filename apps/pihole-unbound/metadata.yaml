@@ -2,10 +2,10 @@
 app: pihole-unbound
 base: false
 channels:
-  - name: "stable"
+  - name: "latest"
     platforms:
       - linux/amd64
-    stable: true
+    latest: true
     tests:
       enabled: true
       type: web

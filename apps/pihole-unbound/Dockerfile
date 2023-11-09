@@ -1,5 +1,5 @@
-ARG VERSION=""
-ARG REVISION=""
+ARG VERSION=$PIHOLE_DOCKER_TAG
+ARG REVISION
 
 FROM ghcr.io/pi-hole/pihole:latest as base
 
