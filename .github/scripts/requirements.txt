@@ -2,4 +2,4 @@ requests
 pyyaml
 packaging
 jinja2
-steam[client]
+svn
