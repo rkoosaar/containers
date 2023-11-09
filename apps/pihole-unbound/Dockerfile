@@ -1,11 +1,15 @@
-ARG VERSION=$PIHOLE_DOCKER_TAG
-ARG REVISION
-
 FROM ghcr.io/pi-hole/pihole:latest as base
+
+ENV PIHOLE_DOCKER_TAG_ENV=$PIHOLE_DOCKER_TAG
+CMD ["sh", "-c", "PIHOLE_DOCKER_TAG=`cat pihole.docker.tag`"]
+
+
+ARG VERSION=$PIHOLE_DOCKER_TAG_ENV
+ARG REVISION=""
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.name="pihole-unbound"
-LABEL org.label-schema.description="Containerized pihole-unbound Image customed for rkoosaar images."
+LABEL org.label-schema.description="Containerized pihole-unbound Image customised for rkoosaar images."
 LABEL org.label-schema.vendor="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.version=$VERSION
