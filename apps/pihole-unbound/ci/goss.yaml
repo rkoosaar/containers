@@ -10,9 +10,6 @@ file:
     exists: true
 
 process:
-  lighthttpd:
-    running: true
-    skip: false
   pihole-FTL:
     running: true
     skip: false
