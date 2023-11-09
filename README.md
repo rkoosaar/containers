@@ -41,7 +41,7 @@ Application Images are all built from the customer base images below, and will l
 
 Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
-[pihole-unbound]() | stable | ghcr.io/rkoosaar/pihole-unbound |
+[pihole-unbound-latest]() | latest | ghcr.io/rkoosaar/pihole-unbound-latest |
 
 
 ### Base Images
