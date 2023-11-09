@@ -3,18 +3,18 @@
 import requests
 import json
 
-# Get the latest version of Pihole
+# Get the latest version of Getmail
 
-URL = "https://registry.hub.docker.com/v2/repositories/pihole/pihole/tags?ordering=name&name="
+URL = "https://api.github.com/repos/pi-hole/docker-pi-hole/releases/latest"
 
 def get_latest(channel):
-    r = requests.get(URL + channel)
+    r = requests.get(URL)
     data = json.loads(r.text)
-    for tag in data['results']:
-        if channel in tag['name']:
-            return tag['name']
+    version = data['tag_name']
+    return version
 
 if __name__ == "__main__":
     import sys
     channel = sys.argv[1]
     print(get_latest(channel))
+

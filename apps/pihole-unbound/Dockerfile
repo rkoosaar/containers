@@ -1,10 +1,7 @@
+ARG VERSION
+ARG REVISION
+
 FROM ghcr.io/pi-hole/pihole:latest as base
-
-ENV PIHOLE_DOCKER_TAG_ENV=$PIHOLE_DOCKER_TAG
-CMD ["sh", "-c", "PIHOLE_DOCKER_TAG=`cat pihole.docker.tag`"]
-
-ARG VERSION=$PIHOLE_DOCKER_TAG_ENV
-ARG REVISION=""
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.name="pihole-unbound"
