@@ -41,6 +41,7 @@ Application Images are all built from the customer base images below, and will l
 
 Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
+[pihole-unbound]() | stable | ghcr.io/rkoosaar/pihole-unbound |
 
 
 ### Base Images
@@ -50,5 +51,4 @@ Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
 [alpine](https://github.com/rkoosaar/containers/pkgs/container/alpine) | 3.18 | ghcr.io/rkoosaar/alpine |![3](https://img.shields.io/badge/3-blue?style=flat-square) ![3.18](https://img.shields.io/badge/3.18-blue?style=flat-square) ![3.18.4](https://img.shields.io/badge/3.18.4-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 [debian-slim](https://github.com/rkoosaar/containers/pkgs/container/debian-slim) | bullseye-slim | ghcr.io/rkoosaar/debian-slim |![bullseye-slim](https://img.shields.io/badge/bullseye--slim-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
-[pihole-unbound]() | stable | ghcr.io/rkoosaar/pihole-unbound |
 [ubuntu](https://github.com/rkoosaar/containers/pkgs/container/ubuntu) | jammy | ghcr.io/rkoosaar/ubuntu |![jammy-20231004](https://img.shields.io/badge/jammy--20231004-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
