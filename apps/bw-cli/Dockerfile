@@ -28,4 +28,6 @@ RUN chmod +x /usr/local/bin/bw
 COPY ./entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
+USER rkoosaar
+
 CMD ["/entrypoint.sh"]
