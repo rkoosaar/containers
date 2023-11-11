@@ -23,8 +23,8 @@ curl -LO "https://github.com/bitwarden/clients/releases/download/cli-v{$VER}/bw-
 FROM base as export
 
 USER root
-COPY --from=builder /tmp/bw /usr/local/bin/bw \
-     chmod +x /usr/local/bin/bw
+COPY --from=builder /tmp/bw /usr/local/bin/bw
+RUN chmod +x /usr/local/bin/bw
 COPY ./entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
