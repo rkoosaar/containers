@@ -1,7 +1,7 @@
 ARG VERSION
 ARG REVISION
 
-FROM docker pull ghcr.io/rkoosaar/debian-slim:latest as base
+FROM ghcr.io/rkoosaar/debian-slim:latest as base
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.name="bw-cli"
