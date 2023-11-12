@@ -12,10 +12,9 @@ LABEL org.label-schema.version=$VERSION
 LABEL org.label-schema.vcs-url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.vcs-ref=$REVISION
 
-RUN \
-     mkdir -p /app \
+RUN mkdir -p /app \
      && chown -R rkoosaar:rkoosaar /app \
-     && chmod -R 755 /app \
+     && chmod -R 755 /app
 
 WORKDIR /app
 RUN apt update && apt install -y curl unzip libsecret-1-0 jq
