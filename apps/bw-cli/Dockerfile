@@ -21,6 +21,7 @@ curl -LO "https://github.com/bitwarden/clients/releases/download/cli-v{$VER}/bw-
 RUN rm *.zip
 
 COPY ./entrypoint.sh /
+RUN chmod +x /entrypoint.sh
 
 USER rkoosaar
 
