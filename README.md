@@ -41,7 +41,7 @@ Application Images are all built from the customer base images below, and will l
 
 Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
-[bw-cli](https://github.com/rkoosaar/containers/pkgs/container/bw-cli) | stable | ghcr.io/rkoosaar/bw-cli |![2024.2.0](https://img.shields.io/badge/2024.2.0-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
+[bw-cli](https://github.com/rkoosaar/containers/pkgs/container/bw-cli) | stable | ghcr.io/rkoosaar/bw-cli |![2024.2.1](https://img.shields.io/badge/2024.2.1-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 [pihole-unbound](https://github.com/rkoosaar/containers/pkgs/container/pihole-unbound) | stable | ghcr.io/rkoosaar/pihole-unbound |![2024.02.2](https://img.shields.io/badge/2024.02.2-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 
 
