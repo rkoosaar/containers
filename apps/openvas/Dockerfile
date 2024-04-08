@@ -15,5 +15,6 @@ LABEL org.label-schema.vcs-ref=$REVISION
 COPY postfix_main.cf /etc/postfix/main.cf
 COPY redis.conf /etc/redis/redis.conf
 COPY redis.sh /scripts/redis.sh
+COPY copycomplete /scripts/copycomplete
 
 ENTRYPOINT /scripts/start.sh
