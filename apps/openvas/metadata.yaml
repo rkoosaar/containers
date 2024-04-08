@@ -1,12 +1,11 @@
 ---
-app: ubuntu
-base: true
+app: openvas
+base: false
 channels:
-  - name: "jammy"
+  - name: "stable"
     platforms:
       - linux/amd64
-      - linux/arm64
     stable: true
     tests:
       enabled: true
-      type: cli
+      type: web
