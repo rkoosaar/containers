@@ -12,7 +12,7 @@ LABEL org.label-schema.version=$VERSION
 LABEL org.label-schema.vcs-url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.vcs-ref=$REVISION
 
-COPY main.cf /etc/postfix/main.cf
+COPY postfix_main.cf /etc/postfix/main.cf
 COPY redis.conf /etc/redis/redis.conf
 COPY redis.sh /scripts/redis.sh
 
