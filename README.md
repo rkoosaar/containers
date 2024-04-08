@@ -42,6 +42,7 @@ Application Images are all built from the customer base images below, and will l
 Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
 [bw-cli](https://github.com/rkoosaar/containers/pkgs/container/bw-cli) | stable | ghcr.io/rkoosaar/bw-cli |![2024.2.1](https://img.shields.io/badge/2024.2.1-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
+[openvas]() | stable | ghcr.io/rkoosaar/openvas |
 [pihole-unbound](https://github.com/rkoosaar/containers/pkgs/container/pihole-unbound) | stable | ghcr.io/rkoosaar/pihole-unbound |![2024.03.2](https://img.shields.io/badge/2024.03.2-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 
 
@@ -52,4 +53,3 @@ Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
 [alpine](https://github.com/rkoosaar/containers/pkgs/container/alpine) | 3.18 | ghcr.io/rkoosaar/alpine |![3](https://img.shields.io/badge/3-blue?style=flat-square) ![3.18](https://img.shields.io/badge/3.18-blue?style=flat-square) ![3.18.6](https://img.shields.io/badge/3.18.6-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 [debian-slim](https://github.com/rkoosaar/containers/pkgs/container/debian-slim) | bullseye-slim | ghcr.io/rkoosaar/debian-slim |![bullseye-slim](https://img.shields.io/badge/bullseye--slim-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
-[ubuntu](https://github.com/rkoosaar/containers/pkgs/container/ubuntu) | jammy | ghcr.io/rkoosaar/ubuntu |![jammy-20240227](https://img.shields.io/badge/jammy--20240227-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
