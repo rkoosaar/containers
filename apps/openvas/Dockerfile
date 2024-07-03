@@ -1,11 +1,11 @@
 ARG VERSION
 ARG REVISION
 
-FROM immauss/openvas:latest-slim as base
+FROM immauss/openvas:latest as base
 
 LABEL maintainer="rkoosaar <rkoosaar@noreply.github.com"
-LABEL org.label-schema.name="pihole-unbound"
-LABEL org.label-schema.description="Containerized pihole-unbound Image customised for rkoosaar images."
+LABEL org.label-schema.name="openvas"
+LABEL org.label-schema.description="Containerized openvas image customised for rkoosaar images."
 LABEL org.label-schema.vendor="rkoosaar <rkoosaar@noreply.github.com"
 LABEL org.label-schema.url="https://github.com/rkoosaar/containers"
 LABEL org.label-schema.version=$VERSION
