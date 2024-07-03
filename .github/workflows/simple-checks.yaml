@@ -8,9 +8,9 @@ jobs:
   pre-commit-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-      - uses: pre-commit/action@v3.0.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - uses: pre-commit/action@v3.0.1
         with:
           extra_args: --config .pre-commit-config.yaml
 
@@ -19,11 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           list-files: shell
@@ -46,9 +46,9 @@ jobs:
     name: Validate Image Metadata
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           list-files: shell
@@ -59,7 +59,7 @@ jobs:
 
       - name: Setup CUE
         if: ${{ steps.filter.outputs.cue == 'true' }}
-        uses: cue-lang/setup-cue@1713281ae501e533ff06108005dffeab9e2e5203
+        uses: cue-lang/setup-cue@v1
 
       - name: Validate image metadata
         if: ${{ steps.filter.outputs.cue == 'true' }}
@@ -72,9 +72,9 @@ jobs:
     name: Validate Renovate Config
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           list-files: shell
