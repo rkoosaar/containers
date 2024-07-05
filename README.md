@@ -43,7 +43,7 @@ Container | Channel | Image | Latest Tags
 --- | --- | --- | ---
 [bw-cli](https://github.com/rkoosaar/containers/pkgs/container/bw-cli) | stable | ghcr.io/rkoosaar/bw-cli |![2024.6.1](https://img.shields.io/badge/2024.6.1-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 [openvas](https://github.com/rkoosaar/containers/pkgs/container/openvas) | stable | ghcr.io/rkoosaar/openvas |![22.4.47](https://img.shields.io/badge/22.4.47-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
-[pihole-unbound](https://github.com/rkoosaar/containers/pkgs/container/pihole-unbound) | stable | ghcr.io/rkoosaar/pihole-unbound |![2024.06.0](https://img.shields.io/badge/2024.06.0-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
+[pihole-unbound](https://github.com/rkoosaar/containers/pkgs/container/pihole-unbound) | stable | ghcr.io/rkoosaar/pihole-unbound |![2024.07.0](https://img.shields.io/badge/2024.07.0-blue?style=flat-square) ![latest](https://img.shields.io/badge/latest-green?style=flat-square)
 
 
 ### Base Images
