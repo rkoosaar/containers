@@ -111,6 +111,9 @@ Container | Channel | Image
 [prowlarr](https://github.com/rkoosaar/containers/pkgs/container/prowlarr) | master | ghcr.io/rkoosaar/prowlarr
 [prowlarr-develop](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-develop) | develop | ghcr.io/rkoosaar/prowlarr-develop
 [prowlarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-nightly) | nightly | ghcr.io/rkoosaar/prowlarr-nightly
+[radarr](https://github.com/rkoosaar/containers/pkgs/container/radarr) | master | ghcr.io/rkoosaar/radarr
+[radarr-develop](https://github.com/rkoosaar/containers/pkgs/container/radarr-develop) | develop | ghcr.io/rkoosaar/radarr-develop
+[radarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/radarr-nightly) | nightly | ghcr.io/rkoosaar/radarr-nightly
 
 
 ## Deprecations
