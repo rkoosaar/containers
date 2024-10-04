@@ -1,0 +1,4 @@
+.goss
+.private
+**/*.pyc
+_merge_to_apps
