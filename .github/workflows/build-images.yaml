@@ -67,6 +67,10 @@ jobs:
         shell: bash
         run: pip install -r ./.github/scripts/requirements.txt && pip freeze
 
+      - name: chmod +x latest.sh
+        shell: bash
+        run: find apps/ -maxdepth 1 -type d -exec bash -c 'chmod +x "$1/ci/latest.sh" 2>/dev/null && echo "Made $1/ci/latest.sh executable" || echo "Warning: $1/ci/latest.sh not found"' _ {} \;
+
       - name: Prepare Matrices
         id: prepare-matrices
         env:
