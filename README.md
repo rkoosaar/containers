@@ -108,6 +108,9 @@ Each Image will be built with a `rolling` tag, along with tags specific to it's 
 
 Container | Channel | Image
 --- | --- | ---
+[lidarr](https://github.com/rkoosaar/containers/pkgs/container/lidarr) | master | ghcr.io/rkoosaar/lidarr
+[lidarr-develop](https://github.com/rkoosaar/containers/pkgs/container/lidarr-develop) | develop | ghcr.io/rkoosaar/lidarr-develop
+[lidarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/lidarr-nightly) | nightly | ghcr.io/rkoosaar/lidarr-nightly
 [prowlarr](https://github.com/rkoosaar/containers/pkgs/container/prowlarr) | master | ghcr.io/rkoosaar/prowlarr
 [prowlarr-develop](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-develop) | develop | ghcr.io/rkoosaar/prowlarr-develop
 [prowlarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-nightly) | nightly | ghcr.io/rkoosaar/prowlarr-nightly
