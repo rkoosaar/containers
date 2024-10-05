@@ -53,6 +53,8 @@ RUN \
 
 COPY ./apps/lidarr/entrypoint.sh /entrypoint.sh
 
+RUN chmod +x /entrypoint.sh
+
 USER nobody:nogroup
 WORKDIR /config
 VOLUME ["/config"]
