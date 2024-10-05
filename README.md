@@ -117,6 +117,8 @@ Container | Channel | Image
 [radarr](https://github.com/rkoosaar/containers/pkgs/container/radarr) | master | ghcr.io/rkoosaar/radarr
 [radarr-develop](https://github.com/rkoosaar/containers/pkgs/container/radarr-develop) | develop | ghcr.io/rkoosaar/radarr-develop
 [radarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/radarr-nightly) | nightly | ghcr.io/rkoosaar/radarr-nightly
+[readarr-develop](https://github.com/rkoosaar/containers/pkgs/container/readarr-develop) | develop | ghcr.io/rkoosaar/readarr-develop
+[readarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/readarr-nightly) | nightly | ghcr.io/rkoosaar/readarr-nightly
 
 
 ## Deprecations
