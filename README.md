@@ -125,6 +125,7 @@ Container | Channel | Image
 [sabnzbd](https://github.com/rkoosaar/containers/pkgs/container/sabnzbd) | stable | ghcr.io/rkoosaar/sabnzbd
 [sonarr](https://github.com/rkoosaar/containers/pkgs/container/sonarr) | main | ghcr.io/rkoosaar/sonarr
 [sonarr-develop](https://github.com/rkoosaar/containers/pkgs/container/sonarr-develop) | develop | ghcr.io/rkoosaar/sonarr-develop
+[tautulli](https://github.com/rkoosaar/containers/pkgs/container/tautulli) | master | ghcr.io/rkoosaar/tautulli
 [volsync](https://github.com/rkoosaar/containers/pkgs/container/volsync) | stable | ghcr.io/rkoosaar/volsync
 
 
