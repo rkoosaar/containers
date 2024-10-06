@@ -111,6 +111,7 @@ Container | Channel | Image
 [lidarr](https://github.com/rkoosaar/containers/pkgs/container/lidarr) | master | ghcr.io/rkoosaar/lidarr
 [lidarr-develop](https://github.com/rkoosaar/containers/pkgs/container/lidarr-develop) | develop | ghcr.io/rkoosaar/lidarr-develop
 [lidarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/lidarr-nightly) | nightly | ghcr.io/rkoosaar/lidarr-nightly
+[par2cmdline-turbo](https://github.com/rkoosaar/containers/pkgs/container/par2cmdline-turbo) | stable | ghcr.io/rkoosaar/par2cmdline-turbo
 [prowlarr](https://github.com/rkoosaar/containers/pkgs/container/prowlarr) | master | ghcr.io/rkoosaar/prowlarr
 [prowlarr-develop](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-develop) | develop | ghcr.io/rkoosaar/prowlarr-develop
 [prowlarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-nightly) | nightly | ghcr.io/rkoosaar/prowlarr-nightly
@@ -119,6 +120,7 @@ Container | Channel | Image
 [radarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/radarr-nightly) | nightly | ghcr.io/rkoosaar/radarr-nightly
 [readarr-develop](https://github.com/rkoosaar/containers/pkgs/container/readarr-develop) | develop | ghcr.io/rkoosaar/readarr-develop
 [readarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/readarr-nightly) | nightly | ghcr.io/rkoosaar/readarr-nightly
+[sabnzbd](https://github.com/rkoosaar/containers/pkgs/container/sabnzbd) | stable | ghcr.io/rkoosaar/sabnzbd
 [sonarr](https://github.com/rkoosaar/containers/pkgs/container/sonarr) | main | ghcr.io/rkoosaar/sonarr
 [sonarr-develop](https://github.com/rkoosaar/containers/pkgs/container/sonarr-develop) | develop | ghcr.io/rkoosaar/sonarr-develop
 
