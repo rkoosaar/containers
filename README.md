@@ -108,6 +108,7 @@ Each Image will be built with a `rolling` tag, along with tags specific to it's 
 
 Container | Channel | Image
 --- | --- | ---
+[actions-runner](https://github.com/rkoosaar/containers/pkgs/container/actions-runner) | stable | ghcr.io/rkoosaar/actions-runner
 [bazarr](https://github.com/rkoosaar/containers/pkgs/container/bazarr) | stable | ghcr.io/rkoosaar/bazarr
 [home-assistant](https://github.com/rkoosaar/containers/pkgs/container/home-assistant) | stable | ghcr.io/rkoosaar/home-assistant
 [lidarr](https://github.com/rkoosaar/containers/pkgs/container/lidarr) | master | ghcr.io/rkoosaar/lidarr
