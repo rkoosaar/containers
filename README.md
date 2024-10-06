@@ -114,6 +114,7 @@ Container | Channel | Image
 [par2cmdline-turbo](https://github.com/rkoosaar/containers/pkgs/container/par2cmdline-turbo) | stable | ghcr.io/rkoosaar/par2cmdline-turbo
 [plex](https://github.com/rkoosaar/containers/pkgs/container/plex) | stable | ghcr.io/rkoosaar/plex
 [plex-beta](https://github.com/rkoosaar/containers/pkgs/container/plex-beta) | beta | ghcr.io/rkoosaar/plex-beta
+[postgres-init](https://github.com/rkoosaar/containers/pkgs/container/postgres-init) | stable | ghcr.io/rkoosaar/postgres-init
 [prowlarr](https://github.com/rkoosaar/containers/pkgs/container/prowlarr) | master | ghcr.io/rkoosaar/prowlarr
 [prowlarr-develop](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-develop) | develop | ghcr.io/rkoosaar/prowlarr-develop
 [prowlarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-nightly) | nightly | ghcr.io/rkoosaar/prowlarr-nightly
