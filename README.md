@@ -112,6 +112,8 @@ Container | Channel | Image
 [lidarr-develop](https://github.com/rkoosaar/containers/pkgs/container/lidarr-develop) | develop | ghcr.io/rkoosaar/lidarr-develop
 [lidarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/lidarr-nightly) | nightly | ghcr.io/rkoosaar/lidarr-nightly
 [par2cmdline-turbo](https://github.com/rkoosaar/containers/pkgs/container/par2cmdline-turbo) | stable | ghcr.io/rkoosaar/par2cmdline-turbo
+[plex](https://github.com/rkoosaar/containers/pkgs/container/plex) | stable | ghcr.io/rkoosaar/plex
+[plex-beta](https://github.com/rkoosaar/containers/pkgs/container/plex-beta) | beta | ghcr.io/rkoosaar/plex-beta
 [prowlarr](https://github.com/rkoosaar/containers/pkgs/container/prowlarr) | master | ghcr.io/rkoosaar/prowlarr
 [prowlarr-develop](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-develop) | develop | ghcr.io/rkoosaar/prowlarr-develop
 [prowlarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/prowlarr-nightly) | nightly | ghcr.io/rkoosaar/prowlarr-nightly
