@@ -119,6 +119,8 @@ Container | Channel | Image
 [radarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/radarr-nightly) | nightly | ghcr.io/rkoosaar/radarr-nightly
 [readarr-develop](https://github.com/rkoosaar/containers/pkgs/container/readarr-develop) | develop | ghcr.io/rkoosaar/readarr-develop
 [readarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/readarr-nightly) | nightly | ghcr.io/rkoosaar/readarr-nightly
+[sonarr](https://github.com/rkoosaar/containers/pkgs/container/sonarr) | main | ghcr.io/rkoosaar/sonarr
+[sonarr-develop](https://github.com/rkoosaar/containers/pkgs/container/sonarr-develop) | develop | ghcr.io/rkoosaar/sonarr-develop
 
 
 ## Deprecations
