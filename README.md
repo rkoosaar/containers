@@ -123,6 +123,7 @@ Container | Channel | Image
 [sabnzbd](https://github.com/rkoosaar/containers/pkgs/container/sabnzbd) | stable | ghcr.io/rkoosaar/sabnzbd
 [sonarr](https://github.com/rkoosaar/containers/pkgs/container/sonarr) | main | ghcr.io/rkoosaar/sonarr
 [sonarr-develop](https://github.com/rkoosaar/containers/pkgs/container/sonarr-develop) | develop | ghcr.io/rkoosaar/sonarr-develop
+[volsync](https://github.com/rkoosaar/containers/pkgs/container/volsync) | stable | ghcr.io/rkoosaar/volsync
 
 
 ## Deprecations
