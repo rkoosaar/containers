@@ -108,6 +108,7 @@ Each Image will be built with a `rolling` tag, along with tags specific to it's 
 
 Container | Channel | Image
 --- | --- | ---
+[home-assistant](https://github.com/rkoosaar/containers/pkgs/container/home-assistant) | stable | ghcr.io/rkoosaar/home-assistant
 [lidarr](https://github.com/rkoosaar/containers/pkgs/container/lidarr) | master | ghcr.io/rkoosaar/lidarr
 [lidarr-develop](https://github.com/rkoosaar/containers/pkgs/container/lidarr-develop) | develop | ghcr.io/rkoosaar/lidarr-develop
 [lidarr-nightly](https://github.com/rkoosaar/containers/pkgs/container/lidarr-nightly) | nightly | ghcr.io/rkoosaar/lidarr-nightly
