@@ -111,6 +111,8 @@ Container | Channel | Image
 [actions-runner](https://github.com/rkoosaar/containers/pkgs/container/actions-runner) | stable | ghcr.io/rkoosaar/actions-runner
 [bazarr](https://github.com/rkoosaar/containers/pkgs/container/bazarr) | stable | ghcr.io/rkoosaar/bazarr
 [calibre-web](https://github.com/rkoosaar/containers/pkgs/container/calibre-web) | stable | ghcr.io/rkoosaar/calibre-web
+[firefly](https://github.com/rkoosaar/containers/pkgs/container/firefly) | stable | ghcr.io/rkoosaar/firefly
+[firefly-data-importer](https://github.com/rkoosaar/containers/pkgs/container/firefly-data-importer) | stable | ghcr.io/rkoosaar/firefly-data-importer
 [home-assistant](https://github.com/rkoosaar/containers/pkgs/container/home-assistant) | stable | ghcr.io/rkoosaar/home-assistant
 [lidarr](https://github.com/rkoosaar/containers/pkgs/container/lidarr) | master | ghcr.io/rkoosaar/lidarr
 [lidarr-develop](https://github.com/rkoosaar/containers/pkgs/container/lidarr-develop) | develop | ghcr.io/rkoosaar/lidarr-develop
