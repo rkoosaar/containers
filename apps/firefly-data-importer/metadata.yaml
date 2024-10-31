@@ -1,5 +1,5 @@
 ---
-app: app: firefly-data-importer
+app: firefly-data-importer
 semver: true
 channels:
   - name: stable
