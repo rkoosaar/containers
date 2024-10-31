@@ -1,5 +1,5 @@
 ---
-app: firefly-iii
+app: firefly
 semver: true
 channels:
   - name: stable
