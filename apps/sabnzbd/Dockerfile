@@ -62,7 +62,7 @@ RUN \
 COPY ./apps/sabnzbd/sabnzbd.ini /app/sabnzbd.ini
 COPY ./apps/sabnzbd/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-COPY --from=ghcr.io/rkoosaar/par2cmdline-turbo:1.1.1 /usr/local/bin/par2 /usr/local/bin/par2
+COPY --from=ghcr.io/rkoosaar/par2cmdline-turbo:1.2.0 /usr/local/bin/par2 /usr/local/bin/par2
 RUN ln -s /usr/local/bin/par2 /usr/local/bin/par2create \
     && ln -s /usr/local/bin/par2 /usr/local/bin/par2repair \
     && ln -s /usr/local/bin/par2 /usr/local/bin/par2verify
