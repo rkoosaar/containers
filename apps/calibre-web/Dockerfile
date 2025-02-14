@@ -55,7 +55,7 @@ RUN \
     # Set permissions
     && chmod -R 755 /app
 
-COPY --from=ghcr.io/cdloh/calibre-bare:7.22.0 / /opt/calibre
+COPY --from=ghcr.io/cdloh/calibre-bare:7.26.0 / /opt/calibre
 COPY --from=ghcr.io/bjw-s/kepubify:4.0.4 /app/kepubify /opt/kepubify/kepubify
 COPY ./apps/calibre-web/entrypoint.sh /entrypoint.sh
 
