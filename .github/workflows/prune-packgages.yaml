@@ -1,57 +1,59 @@
-name: Prune GHCR
+name: GHCR prune (user)
 on:
   workflow_dispatch:
     inputs:
       keep:
-        description: "How many newest tagged versions to keep"
+        description: "How many latest tagged versions to keep"
         required: true
         default: "5"
 
 jobs:
   prune:
     runs-on: ubuntu-latest
-    env:
-      OWNER: rkoosaar
-      KEEP: ${{ inputs.keep }}
-      GH_TOKEN: ${{ secrets.PACKAGES_PAT }}  # PAT with delete:packages, read:packages, repo
+    permissions:
+      packages: write
+      contents: read
     steps:
-      - name: Check gh auth
-        run: gh auth status
+      - name: Mint GitHub App token
+        id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
-      - name: List all container packages for user
-        id: list
+      - name: Set GH_TOKEN
+        run: echo "GH_TOKEN=${{ steps.app.outputs.token }}" >> $GITHUB_ENV
+
+      - name: Prune all user-owned container packages
+        env:
+          OWNER: ${{ github.repository_owner }}
+          KEEP: ${{ github.event.inputs.keep }}
+        shell: bash
         run: |
           set -euo pipefail
-          # One name per line, raw (can contain /)
-          gh api "/users/$OWNER/packages" -F package_type=container --paginate -q '.[].name' > /tmp/packages.txt
-          echo "Found packages:"
-          cat /tmp/packages.txt
+          # List package *names* under the user (not org). For orgs, switch /users -> /orgs.
+          gh api "/users/$OWNER/packages?package_type=container&per_page=100" --paginate -q '.[].name' \
+          | while IFS= read -r PKG; do
+              # URL-encode name (handles weird names)
+              ENC=$(jq -rn --arg s "$PKG" '$s|@uri')
+              echo "::group::Pruning package $PKG"
 
-      - name: Prune packages
-        run: |
-          set -euo pipefail
-          while IFS= read -r PKG; do
-            [ -z "$PKG" ] && continue
-            echo "::group::Pruning $PKG"
+              # 1) delete all UNTAGGED versions
+              gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
+                 -q '.[] | select((.metadata.container.tags|length)==0) | .id' \
+              | while IFS= read -r VID; do
+                  echo "Delete UNTAGGED $VID"
+                  gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
+                done
 
-            # URL-encode the package name for API paths
-            PKG_ENC=$(printf '%s' "$PKG" | jq -sRr @uri)
+              # 2) keep newest $KEEP tagged, delete the rest
+              gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
+                 -q "[.[] | select((.metadata.container.tags|length)>0)] | sort_by(.created_at) | reverse | .[$KEEP:] | .[].id" \
+              | while IFS= read -r VID; do
+                  echo "Delete OLD tagged $VID"
+                  gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
+                done
 
-            # 1) delete UNTAGGED versions
-            gh api "/users/$OWNER/packages/container/$PKG_ENC/versions" --paginate \
-              -q '.[] | select(.metadata.container.tags|length==0) | .id' \
-            | while read -r VID; do
-                echo "Delete UNTAGGED version $VID"
-                gh api -X DELETE "/users/$OWNER/packages/container/$PKG_ENC/versions/$VID" || true
-              done
-
-            # 2) keep newest $KEEP tagged; delete the rest
-            gh api "/users/$OWNER/packages/container/$PKG_ENC/versions" --paginate \
-              -q "[.[] | select(.metadata.container.tags|length>0)] | sort_by(.created_at) | reverse | .[$KEEP:] | .[].id" \
-            | while read -r VID; do
-                echo "Delete OLD tagged version $VID"
-                gh api -X DELETE "/users/$OWNER/packages/container/$PKG_ENC/versions/$VID" || true
-              done
-
-            echo "::endgroup::"
-          done < /tmp/packages.txt
+              echo "::endgroup::"
+            done
