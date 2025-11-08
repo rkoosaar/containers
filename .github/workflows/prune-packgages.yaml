@@ -1,0 +1,17 @@
+# .github/workflows/prune-packages.yaml
+name: Prune old package versions
+on:
+  workflow_dispatch:   # run on demand
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write   # MUST have this
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          owner: rkoosaar                     # your username/org
+          package-name: containers            # your package name (NOT repo name)
+          package-type: container             # likely 'container'
+          min-versions-to-keep: 0             # <--- delete *everything*
+          delete-only-untagged-versions: false # set false if you want to delete all
