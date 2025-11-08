@@ -1,7 +1,8 @@
-name: Mirror Firefly III → GHCR (latest + pinned versions)
+name: Mirror Firefly III → GHCR
+
 on:
-  # schedule:
-  #   - cron: "37 4 * * *"    # daily
+  schedule:
+    - cron: "17 4 * * *"   # daily; adjust as desired
   workflow_dispatch: {}
 
 jobs:
@@ -9,23 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # push to GHCR with GITHUB_TOKEN
+      packages: write   # required to push to GHCR
     env:
       OWNER: ${{ github.repository_owner }}
-      DEST_REG: ghcr.io
-
-      # Upstream (no Docker login required)
       SRC_REG: docker.io
       SRC_CORE: fireflyiii/core
       SRC_IMPORTER: fireflyiii/data-importer
-
-      # Our GHCR repositories
+      DEST_REG: ghcr.io
       DEST_CORE: firefly-iii
       DEST_IMPORTER: firefly-iii-importer
 
       # Fixed version lists you asked for
-      CORE_FIXED_TAGS: "version-6.2.10 version-6.2.21 version-6.3.0 version-6.3.2 version-6.4.0 version-6.4.4 version-6.4.5"
-      IMPORTER_FIXED_TAGS: "version-1.5.1 version-1.6.1 version-1.7.1 version-1.7.10 version-1.8.1 version-1.8.4 version-1.9.0"
+      CORE_FIXED: "version-6.2.10 version-6.2.21 version-6.3.0 version-6.3.2 version-6.4.0 version-6.4.4 version-6.4.5"
+      IMPORTER_FIXED: "version-1.5.1 version-1.6.1 version-1.7.1 version-1.7.10 version-1.8.1 version-1.8.4 version-1.9.0"
+
     steps:
       - name: Install skopeo & jq
         run: |
@@ -33,175 +31,145 @@ jobs:
           sudo apt-get install -y skopeo jq
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Helpers (functions)
-        id: helpers
+      - name: Define helper functions
         shell: bash
         run: |
-          cat > helpers.sh <<'EOF'
           set -euo pipefail
 
-          ghcr_exists() {
-            local image="$1" tag="$2"
-            skopeo inspect "docker://${image}:${tag}" >/dev/null 2>&1
+          cat > helpers.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          exists_on_ghcr() {
+            local repo="$1" tag="$2"
+            if skopeo inspect "docker://ghcr.io/${{ env.OWNER }}/${repo}:${tag}" >/dev/null 2>&1; then
+              return 0
+            else
+              return 1
+            fi
           }
 
-          # copy source ref -> dest ref (multi-arch)
-          do_copy() {
-            local src="$1" dest="$2"
-            echo "⏩ Copying $src -> $dest"
-            skopeo copy --all "docker://${src}" "docker://${dest}"
+          # Copy from Docker Hub upstream to GHCR (multi-arch), but skip if dest tag exists
+          copy_from_upstream_if_missing() {
+            local src_repo="$1" src_tag="$2" dest_repo="$3" dest_tag="$4"
+            if exists_on_ghcr "$dest_repo" "$dest_tag"; then
+              echo "✓ Skip: ghcr.io/${{ env.OWNER }}/${dest_repo}:${dest_tag} already exists"
+              return 0
+            fi
+            echo "→ Copy: docker://${{ env.SRC_REG }}/${src_repo}:${src_tag} → ghcr.io/${{ env.OWNER }}/${dest_repo}:${dest_tag}"
+            skopeo copy --all \
+              "docker://${{ env.SRC_REG }}/${src_repo}:${src_tag}" \
+              "docker://ghcr.io/${{ env.OWNER }}/${dest_repo}:${dest_tag}"
           }
 
-          # Resolve x.y.z from image labels; fallback to digest stub
-          resolve_version_from_label() {
-            local ref="$1"  # e.g. docker.io/fireflyiii/core:latest
+          # Create/ensure an alias tag on GHCR by copying GHCR→GHCR (cheap and fast), skip if exists
+          alias_tag_if_missing() {
+            local repo="$1" existing_tag="$2" new_tag="$3"
+            if exists_on_ghcr "$repo" "$new_tag"; then
+              echo "✓ Skip alias: ghcr.io/${{ env.OWNER }}/${repo}:${new_tag} exists"
+              return 0
+            fi
+            echo "→ Alias: ghcr.io/${{ env.OWNER }}/${repo}:${existing_tag} → :${new_tag}"
+            skopeo copy --all \
+              "docker://ghcr.io/${{ env.OWNER }}/${repo}:${existing_tag}" \
+              "docker://ghcr.io/${{ env.OWNER }}/${repo}:${new_tag}"
+          }
+
+          # Extract upstream version label for a given (upstream) repo:tag.
+          resolve_version_label() {
+            local upstream_repo="$1" upstream_tag="$2"
             local cfg
-            cfg="$(skopeo inspect --config "docker://${ref}")"
-            local ver
-            ver="$(echo "$cfg" | jq -r '
+            if ! cfg="$(skopeo inspect --config "docker://${{ env.SRC_REG }}/${upstream_repo}:${upstream_tag}")"; then
+              echo ""
+              return 0
+            fi
+            local v
+            v="$(echo "$cfg" | jq -r '
               .config.Labels["org.opencontainers.image.version"] //
               .config.Labels["org.label-schema.version"] //
-              .config.Labels["version"] // empty
-            ' | head -n1)"
-            if [[ -z "${ver:-}" || "$ver" == "null" ]]; then
-              local d
-              d="$(skopeo inspect "docker://${ref}" | jq -r .Digest)"
-              ver="sha256-$(echo "$d" | cut -d: -f2 | cut -c1-12)"
-            fi
-            echo "$ver"
+              .config.Labels["version"] //
+              empty
+            ')"
+            echo "$v"
           }
 
-          # Given "version-6.4.5" or "6.4.5" -> returns "6.4.5"
-          plain_numeric() {
-            local t="$1"
-            echo "${t#version-}"
+          # From "version-x.y.z" → "x.y.z"
+          strip_prefix_version() {
+            local tag="$1"
+            echo "$tag" | sed -E 's/^version-//'
+          }
+
+          # Quick x.y.z sanity check
+          is_semver_triplet() {
+            [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           }
           EOF
-          echo "helpers_ready=1" >> "$GITHUB_OUTPUT"
 
-      - name: Mirror Firefly core: latest + derived tags
-        if: steps.helpers.outputs.helpers_ready == '1'
+          chmod +x helpers.sh
+
+      - name: Mirror CORE (latest + derived tags + fixed versions)
         shell: bash
         run: |
           set -euo pipefail
-          source helpers.sh
+          source ./helpers.sh
 
-          SRC="${SRC_REG}/${SRC_CORE}:latest"
-          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_CORE}"
+          # 1) Mirror upstream "latest" to GHCR
+          copy_from_upstream_if_missing "${SRC_CORE}" "latest" "${DEST_CORE}" "latest"
 
-          # Mirror upstream 'latest' (skip if already exists)
-          if ghcr_exists "${DEST_BASE}" "latest"; then
-            echo "✅ core:latest already in GHCR — skipping copy"
-          else
-            do_copy "${SRC}" "${DEST_BASE}:latest"
-          fi
-
-          # Resolve x.y.z from upstream latest
-          CORE_VER="$(resolve_version_from_label "${SRC_REG}/${SRC_CORE}:latest")"
-          echo "Resolved core version from label: ${CORE_VER}"
-
-          # Tag 'version-x.y.z' (skip-if-exists)
-          if ghcr_exists "${DEST_BASE}" "version-${CORE_VER}"; then
-            echo "✅ core:version-${CORE_VER} exists — skipping"
-          else
-            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:version-${CORE_VER}"
-          fi
-
-          # Tag plain numeric 'x.y.z' (skip-if-exists)
-          if ghcr_exists "${DEST_BASE}" "${CORE_VER}"; then
-            echo "✅ core:${CORE_VER} exists — skipping"
-          else
-            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:${CORE_VER}"
-          fi
-
-      - name: Mirror Firefly core: specific version list
-        shell: bash
-        run: |
-          set -euo pipefail
-          source helpers.sh
-
-          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_CORE}"
-          for TAG in ${CORE_FIXED_TAGS}; do
-            SRC="${SRC_REG}/${SRC_CORE}:${TAG}"
-
-            # 1) Ensure 'version-x.y.z'
-            if ghcr_exists "${DEST_BASE}" "${TAG}"; then
-              echo "✅ core:${TAG} already exists — skipping"
+          # 2) Resolve the upstream version for latest, then add version-x.y.z and numeric x.y.z aliases
+          core_ver="$(resolve_version_label "${SRC_CORE}" "latest" || true)"
+          if [[ -n "${core_ver}" && "${core_ver}" != "null" ]]; then
+            if is_semver_triplet "${core_ver}"; then
+              alias_tag_if_missing "${DEST_CORE}" "latest" "version-${core_ver}"
+              alias_tag_if_missing "${DEST_CORE}" "latest" "${core_ver}"
             else
-              do_copy "${SRC}" "${DEST_BASE}:${TAG}"
+              echo "Note: resolved version '${core_ver}' does not look like x.y.z; skipping numeric alias."
+              alias_tag_if_missing "${DEST_CORE}" "latest" "version-${core_ver}"
             fi
+          else
+            echo "Note: no version label found on upstream CORE:latest; only 'latest' will be updated."
+          fi
 
-            # 2) Also add plain numeric tag x.y.z
-            NUM="$(plain_numeric "${TAG}")"
-            if ghcr_exists "${DEST_BASE}" "${NUM}"; then
-              echo "✅ core:${NUM} already exists — skipping"
-            else
-              do_copy "${DEST_BASE}:${TAG}" "${DEST_BASE}:${NUM}"
+          # 3) Copy fixed CORE versions you listed, and add numeric tag alongside
+          for tag in ${CORE_FIXED}; do
+            copy_from_upstream_if_missing "${SRC_CORE}" "${tag}" "${DEST_CORE}" "${tag}"
+            numeric="$(strip_prefix_version "${tag}")"
+            if is_semver_triplet "${numeric}"; then
+              alias_tag_if_missing "${DEST_CORE}" "${tag}" "${numeric}"
             fi
           done
 
-      - name: Mirror data-importer: latest + derived tags
+      - name: Mirror IMPORTER (latest + derived tags + fixed versions)
         shell: bash
         run: |
           set -euo pipefail
-          source helpers.sh
+          source ./helpers.sh
 
-          SRC="${SRC_REG}/${SRC_IMPORTER}:latest"
-          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_IMPORTER}"
+          # 1) Mirror upstream "latest" to GHCR
+          copy_from_upstream_if_missing "${SRC_IMPORTER}" "latest" "${DEST_IMPORTER}" "latest"
 
-          # Mirror 'latest' (skip-if-exists)
-          if ghcr_exists "${DEST_BASE}" "latest"; then
-            echo "✅ importer:latest already in GHCR — skipping"
-          else
-            do_copy "${SRC}" "${DEST_BASE}:latest"
-          fi
-
-          # Resolve newest version from labels on upstream latest
-          IMP_VER="$(resolve_version_from_label "${SRC_REG}/${SRC_IMPORTER}:latest")"
-          echo "Resolved importer version from label: ${IMP_VER}"
-
-          # Tag 'version-x.y.z'
-          if ghcr_exists "${DEST_BASE}" "version-${IMP_VER}"; then
-            echo "✅ importer:version-${IMP_VER} exists — skipping"
-          else
-            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:version-${IMP_VER}"
-          fi
-
-          # Tag plain numeric 'x.y.z'
-          if ghcr_exists "${DEST_BASE}" "${IMP_VER}"; then
-            echo "✅ importer:${IMP_VER} exists — skipping"
-          else
-            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:${IMP_VER}"
-          fi
-
-      - name: Mirror data-importer: specific version list
-        shell: bash
-        run: |
-          set -euo pipefail
-          source helpers.sh
-
-          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_IMPORTER}"
-          for TAG in ${IMPORTER_FIXED_TAGS}; do
-            SRC="${SRC_REG}/${SRC_IMPORTER}:${TAG}"
-
-            # 1) Ensure 'version-x.y.z'
-            if ghcr_exists "${DEST_BASE}" "${TAG}"; then
-              echo "✅ importer:${TAG} already exists — skipping"
+          # 2) Resolve importer latest version; add version-x.y.z and numeric x.y.z
+          imp_ver="$(resolve_version_label "${SRC_IMPORTER}" "latest" || true)"
+          if [[ -n "${imp_ver}" && "${imp_ver}" != "null" ]]; then
+            if is_semver_triplet "${imp_ver}"; then
+              alias_tag_if_missing "${DEST_IMPORTER}" "latest" "version-${imp_ver}"
+              alias_tag_if_missing "${DEST_IMPORTER}" "latest" "${imp_ver}"
             else
-              do_copy "${SRC}" "${DEST_BASE}:${TAG}"
+              echo "Note: resolved importer version '${imp_ver}' not x.y.z; skipping numeric alias."
+              alias_tag_if_missing "${DEST_IMPORTER}" "latest" "version-${imp_ver}"
             fi
+          else
+            echo "Note: no version label found on upstream IMPORTER:latest; only 'latest' will be updated."
+          fi
 
-            # 2) Also add plain numeric tag x.y.z
-            NUM="$(plain_numeric "${TAG}")"
-            if ghcr_exists "${DEST_BASE}" "${NUM}"; then
-              echo "✅ importer:${NUM} already exists — skipping"
-            else
-              do_copy "${DEST_BASE}:${TAG}" "${DEST_BASE}:${NUM}"
+          # 3) Copy fixed IMPORTER versions you listed, and add numeric tag alongside
+          for tag in ${IMPORTER_FIXED}; do
+            copy_from_upstream_if_missing "${SRC_IMPORTER}" "${tag}" "${DEST_IMPORTER}" "${tag}"
+            numeric="$(strip_prefix_version "${tag}")"
+            if is_semver_triplet "${numeric}"; then
+              alias_tag_if_missing "${DEST_IMPORTER}" "${tag}" "${numeric}"
             fi
           done
