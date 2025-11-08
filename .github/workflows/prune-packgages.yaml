@@ -1,64 +1,63 @@
-name: Purge GHCR packages (repo-linked)
+name: Purge ALL GHCR packages (user)
+
 on:
   workflow_dispatch:
+
 jobs:
-  purge:
+  purge-ghcr:
     runs-on: ubuntu-latest
     permissions:
+      packages: write        # required to delete package versions
       contents: read
-      packages: write
     steps:
-      - name: Create app token
-        id: app
+      - name: App token
+        id: app-token
         uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: rkoosaar
+          owner: ${{ github.repository_owner }}
 
-      - name: Purge ALL container packages linked to this repo
+      - name: Purge all user packages (containers)
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
-          OWNER: rkoosaar
-          REPO: containers
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
         shell: bash
         run: |
           set -euo pipefail
 
-          # 1) List container packages *linked to the repo*
-          #    (this avoids touching packages linked to other repos)
-          mapfile -t PKGS < <(gh api "/repos/$OWNER/$REPO/packages" \
-            -F package_type=container --paginate -q '.[].name')
+          # List container package NAMES owned by the USER (switch /users -> /orgs for org-owned)
+          mapfile -t PKGS < <(gh api "/users/${OWNER}/packages" \
+                                  -F package_type=container \
+                                  --paginate \
+                                  -q '.[].name')
 
           if [[ ${#PKGS[@]} -eq 0 ]]; then
-            echo "No container packages linked to $OWNER/$REPO"
+            echo "No container packages found for user ${OWNER}"
             exit 0
           fi
 
-          echo "Found ${#PKGS[@]} packages: ${PKGS[*]}"
-
-          # 2) For each package: delete ALL versions (tagged + untagged), then delete the package
           for PKG in "${PKGS[@]}"; do
-            ENC=$(jq -rn --arg s "$PKG" '$s|@uri')
-            echo "::group::Purging package: $PKG"
+            # URL-encode package name for path segments (handles names like "containers/my-image")
+            ENC="$(jq -rn --arg s "$PKG" '$s|@uri')"
 
-            # Delete all versions (loop until none left)
+            echo "::group::Deleting ALL versions of package: $PKG"
+
+            # Delete ALL versions (tagged + untagged); repeat until none remain (handles pagination/races)
             while : ; do
-              # Grab up to 100 version IDs
-              mapfile -t VERS < <(gh api "/users/$OWNER/packages/container/$ENC/versions" \
-                  --paginate -q '.[].id' | head -n 100 || true)
-
-              [[ ${#VERS[@]} -eq 0 ]] && break
-
-              for VID in "${VERS[@]}"; do
-                echo "DELETE version $VID"
-                gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
-              done
+              IDS=$(gh api "/users/${OWNER}/packages/container/${ENC}/versions" \
+                        --paginate -q '.[].id' || true)
+              [[ -z "${IDS}" ]] && break
+              while read -r VID; do
+                [[ -z "${VID}" ]] && continue
+                echo "DELETE version ${VID}"
+                gh api -X DELETE "/users/${OWNER}/packages/container/${ENC}/versions/${VID}" || true
+              done <<< "${IDS}"
             done
 
-            # Finally delete the empty package itself
-            echo "DELETE package entity: $PKG"
-            gh api -X DELETE "/users/$OWNER/packages/container/$ENC" || true
+            echo "Trying to delete the now-empty package itself…"
+            # Delete the package object (ignore failure if the endpoint is restricted)
+            gh api -X DELETE "/users/${OWNER}/packages/container/${ENC}" || true
 
             echo "::endgroup::"
           done
