@@ -1,8 +1,8 @@
-name: Mirror Firefly III → GHCR (latest + version-x.y.z + numeric)
+name: Mirror Firefly III → GHCR (core + DATA-IMPORTER)
 
 on:
   # schedule:
-  #   - cron: "37 4 * * *"    # daily
+  #   - cron: "37 4 * * *"   # daily
   workflow_dispatch: {}
 
 jobs:
@@ -11,166 +11,146 @@ jobs:
     permissions:
       contents: read
       packages: write
-
     env:
       OWNER: ${{ github.repository_owner }}
-
-      # Upstream registries/repositories
       SRC_REG: docker.io
       SRC_CORE: fireflyiii/core
-      SRC_DATA_IMPORTER: fireflyiii/data-importer
-
-      # Dest (your GHCR repos)
+      SRC_IMPORTER: fireflyiii/data-importer
       DEST_REG: ghcr.io
       DEST_CORE: firefly-iii
-      DEST_DATA_IMPORTER: firefly-iii-data-importer
+      DEST_IMPORTER: firefly-iii-data-importer
 
-      # Extra versions to copy (as they exist upstream)
-      CORE_EXTRA_TAGS: "version-6.2.10 version-6.2.21 version-6.3.0 version-6.3.2 version-6.4.0 version-6.4.4 version-6.4.5"
-      DATA_IMPORTER_EXTRA_TAGS: "version-1.5.1 version-1.6.1 version-1.7.1 version-1.7.10 version-1.8.1 version-1.8.4 version-1.9.0"
+      # Explicit lists you requested
+      CORE_REQUESTED: >-
+        version-6.2.10
+        version-6.2.21
+        version-6.3.0
+        version-6.3.2
+        version-6.4.0
+        version-6.4.4
+        version-6.4.5
 
+      IMPORTER_REQUESTED: >-
+        version-1.5.1
+        version-1.6.1
+        version-1.7.1
+        version-1.7.10
+        version-1.8.1
+        version-1.8.4
+        version-1.9.0
+        version-1.9.1   # include latest known explicit
     steps:
       - name: Install skopeo & jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y skopeo jq
 
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+
       - name: Define helpers
-        id: helpers
         shell: bash
         run: |
           set -euo pipefail
 
-          cat <<'EOF' > /tmp/helpers.sh
-          #!/usr/bin/env bash
-          set -euo pipefail
-
-          dest_creds() {
-            echo "${GITHUB_ACTOR}:${GITHUB_TOKEN}"
-          }
-
-          # Copy src->dest if dest tag doesn't already exist.
           copy_if_missing() {
-            local src="$1"   # e.g. docker://docker.io/fireflyiii/core:latest
-            local dst="$2"   # e.g. docker://ghcr.io/OWNER/firefly-iii:latest
+            local src_ref="$1"    # e.g. docker://docker.io/fireflyiii/core:latest
+            local dest_repo="$2"  # e.g. ghcr.io/OWNER/firefly-iii
+            local dest_tag="$3"   # e.g. latest
 
-            if skopeo inspect "$dst" --creds "$(dest_creds)" >/dev/null 2>&1; then
-              echo "✓ Exists, skipping: $dst"
+            if skopeo inspect "docker://${dest_repo}:${dest_tag}" > /dev/null 2>&1; then
+              echo "✅ Skip: ${dest_repo}:${dest_tag} already exists"
               return 0
             fi
 
-            echo "→ Copying $src  →  $dst"
-            skopeo copy --all "$src" "$dst" \
-              ${SRC_CREDS:+--src-creds "$SRC_CREDS"} \
-              --dest-creds "$(dest_creds)"
+            echo "→ Copying ${src_ref}  →  docker://${dest_repo}:${dest_tag}"
+            skopeo copy --all "docker://${src_ref}" "docker://${dest_repo}:${dest_tag}"
           }
 
-          # Read a semantic version from OCI labels (fallback to digest short).
-          discover_version_from_labels() {
-            local src="$1"
-            local cfg; cfg="$(skopeo inspect --config "$src" ${SRC_CREDS:+--creds "$SRC_CREDS"})" || return 1
-            local v
-            v="$(echo "$cfg" | jq -r '
+          # Resolve a semantic version (x.y.z) from image labels, fallback to digest
+          resolve_semver_or_digest() {
+            local src_ref="$1"
+            local cfg; cfg="$(skopeo inspect --config "docker://${src_ref}")" || cfg="{}"
+            local semver
+            semver="$(echo "$cfg" | jq -r '
               .config.Labels["org.opencontainers.image.version"] //
               .config.Labels["org.label-schema.version"] //
-              .config.Labels["version"] // empty
-            ')"
-            if [[ -n "${v:-}" && "$v" != "null" ]]; then
-              echo "$v"
-              return 0
+              .config.Labels["version"] //
+              empty
+            ' | head -n1)"
+
+            if [[ -z "${semver:-}" || "${semver}" == "null" ]]; then
+              local digest; digest="$(skopeo inspect "docker://${src_ref}" | jq -r .Digest)"
+              semver="sha256-$(echo "$digest" | cut -d: -f2 | cut -c1-12)"
             fi
-            # Fallback to digest-derived tag
-            local dig; dig="$(skopeo inspect "$src" ${SRC_CREDS:+--creds "$SRC_CREDS"} | jq -r .Digest)"
-            echo "sha256-$(echo "$dig" | cut -d: -f2 | cut -c1-12)"
+            echo "$semver"
           }
 
-          # Turn "version-6.4.5" -> "6.4.5" (plain numeric). If already numeric, returns as-is.
-          to_numeric_tag() {
-            local t="$1"
-            echo "${t#version-}"
-          }
-          EOF
+          # Make helper functions available to later steps
+          declare -f copy_if_missing > /tmp/helpers.sh
+          declare -f resolve_semver_or_digest >> /tmp/helpers.sh
 
-          chmod +x /tmp/helpers.sh
-
-      - name: Mirror CORE: latest + labeled version + numeric
+      - name: Mirror CORE (latest, version-x.y.z + numeric, plus requested tags)
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           source /tmp/helpers.sh
 
-          SRC="docker://${SRC_REG}/${SRC_CORE}:latest"
-          DST_BASE="docker://${DEST_REG}/${OWNER}/${DEST_CORE}"
+          SRC_REG="${SRC_REG}"
+          SRC_CORE="${SRC_CORE}"
+          DEST_REG="${DEST_REG}"
+          OWNER="${OWNER}"
+          DEST_CORE="${DEST_CORE}"
 
-          ver="$(discover_version_from_labels "$SRC")"
-          num="$(to_numeric_tag "$ver")"
+          dest_repo="${DEST_REG}/${OWNER}/${DEST_CORE}"
 
-          # Ensure upstream "latest" → GHCR "latest"
-          copy_if_missing "$SRC" "${DST_BASE}:latest"
+          # 1) Mirror upstream "latest"
+          copy_if_missing "${SRC_REG}/${SRC_CORE}:latest" "${dest_repo}" "latest"
 
-          # Also tag version-x.y.z (from labels on latest)
-          copy_if_missing "$SRC" "${DST_BASE}:version-${ver}"
+          # 2) Read version from "latest" and tag as version-x.y.z + x.y.z
+          latest_semver="$(resolve_semver_or_digest "${SRC_REG}/${SRC_CORE}:latest")"
+          if [[ -n "${latest_semver}" ]]; then
+            copy_if_missing "${SRC_REG}/${SRC_CORE}:latest" "${dest_repo}" "version-${latest_semver}"
+            # Also plain numeric tag (A+C)
+            copy_if_missing "${SRC_REG}/${SRC_CORE}:latest" "${dest_repo}" "${latest_semver}"
+          fi
 
-          # Also tag plain numeric x.y.z
-          copy_if_missing "$SRC" "${DST_BASE}:${num}"
-
-      - name: Mirror CORE: explicit extra tags (and numeric aliases)
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          source /tmp/helpers.sh
-
-          DST_BASE="docker://${DEST_REG}/${OWNER}/${DEST_CORE}"
-
-          for tag in ${CORE_EXTRA_TAGS}; do
-            SRC="docker://${SRC_REG}/${SRC_CORE}:${tag}"
-            copy_if_missing "$SRC" "${DST_BASE}:${tag}"
-
-            num="$(to_numeric_tag "$tag")"
-            copy_if_missing "$SRC" "${DST_BASE}:${num}"
+          # 3) Ensure the requested fixed versions exist (version-x.y.z + numeric)
+          for tag in ${CORE_REQUESTED}; do
+            # version-6.4.5 → numeric "6.4.5"
+            numeric="${tag#version-}"
+            copy_if_missing "${SRC_REG}/${SRC_CORE}:${tag}" "${dest_repo}" "${tag}"
+            copy_if_missing "${SRC_REG}/${SRC_CORE}:${tag}" "${dest_repo}" "${numeric}"
           done
 
-      - name: Mirror DATA-IMPORTER: latest + labeled version + numeric
+      - name: Mirror DATA-IMPORTER (latest, newest version-x.y.z + numeric, plus requested tags)
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           source /tmp/helpers.sh
 
-          SRC="docker://${SRC_REG}/${SRC_DATA_IMPORTER}:latest"
-          DST_BASE="docker://${DEST_REG}/${OWNER}/${DEST_DATA_IMPORTER}"
+          SRC_REG="${SRC_REG}"
+          SRC_IMPORTER="${SRC_IMPORTER}"
+          DEST_REG="${DEST_REG}"
+          OWNER="${OWNER}"
+          DEST_IMPORTER="${DEST_IMPORTER}"
 
-          ver="$(discover_version_from_labels "$SRC")"
-          num="$(to_numeric_tag "$ver")"
+          dest_repo="${DEST_REG}/${OWNER}/${DEST_IMPORTER}"
 
-          # Ensure upstream "latest" → GHCR "latest"
-          copy_if_missing "$SRC" "${DST_BASE}:latest"
+          # 1) Mirror upstream "latest"
+          copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:latest" "${dest_repo}" "latest"
 
-          # Tag version-x.y.z derived from latest (e.g., version-1.9.1)
-          copy_if_missing "$SRC" "${DST_BASE}:version-${ver}"
+          # 2) Resolve semver from latest and add version-x.y.z + numeric
+          importer_semver="$(resolve_semver_or_digest "${SRC_REG}/${SRC_IMPORTER}:latest")"
+          if [[ -n "${importer_semver}" ]]; then
+            copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:latest" "${dest_repo}" "version-${importer_semver}"
+            copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:latest" "${dest_repo}" "${importer_semver}"
+          fi
 
-          # Tag plain numeric (e.g., 1.9.1)
-          copy_if_missing "$SRC" "${DST_BASE}:${num}"
-
-      - name: Mirror DATA-IMPORTER: explicit extra tags (and numeric aliases)
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          source /tmp/helpers.sh
-
-          DST_BASE="docker://${DEST_REG}/${OWNER}/${DEST_DATA_IMPORTER}"
-
-          for tag in ${DATA_IMPORTER_EXTRA_TAGS}; do
-            SRC="docker://${SRC_REG}/${SRC_DATA_IMPORTER}:${tag}"
-            copy_if_missing "$SRC" "${DST_BASE}:${tag}"
-
-            num="$(to_numeric_tag "$tag")"
-            copy_if_missing "$SRC" "${DST_BASE}:${num}"
+          # 3) Ensure requested fixed versions (incl. 1.9.1)
+          for tag in ${IMPORTER_REQUESTED}; do
+            numeric="${tag#version-}"
+            copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:${tag}" "${dest_repo}" "${tag}"
+            copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:${tag}" "${dest_repo}" "${numeric}"
           done
