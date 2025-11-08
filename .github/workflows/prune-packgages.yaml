@@ -1,52 +1,18 @@
-name: Purge calibre-web from GHCR
-
+name: GHCR prune calibre-web
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-  packages: write  # needed for delete via REST
-
+  packages: write
 jobs:
-  purge:
+  prune:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete all calibre-web container versions
-        env:
-          GH_OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-
-          have_jq() { command -v jq >/dev/null; }
-          have_jq || sudo apt-get update -y && sudo apt-get install -y jq
-
-          echo "Listing container packages for $GH_OWNER..."
-          # Find package names that end with 'calibre-web' (handles 'owner/calibre-web')
-          mapfile -t PKGS < <(
-            gh api \
-              --paginate \
-              -F package_type=container \
-              "/users/$GH_OWNER/packages" \
-            | jq -r '.[] | select(.name | test("(^|/)calibre-web$")) | .name' \
-            | sort -u
-          )
-
-          if (( ${#PKGS[@]} == 0 )); then
-            echo "No matching packages."
-            exit 0
-          fi
-
-          for PKG in "${PKGS[@]}"; do
-            echo "Purging package: $PKG"
-            ENC_PKG=$(jq -rn --arg s "$PKG" '$s|@uri')
-            # Delete every version
-            gh api --paginate "/users/$GH_OWNER/packages/container/$ENC_PKG/versions" \
-              | jq -r '.[].id' \
-              | while read -r VID; do
-                  echo "Deleting version $VID..."
-                  gh api -X DELETE "/users/$GH_OWNER/packages/container/$ENC_PKG/versions/$VID"
-                done
-            echo "Done: $PKG"
-          done
-
-          echo "All done."
+      - uses: vlaurin/action-ghcr-prune@v0.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          packages: |
+            ${{ github.repository_owner }}/calibre-web
+          prune-untagged: true
+          prune-tags-regexes: |
+            ^.*$   # delete ALL tags
