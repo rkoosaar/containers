@@ -15,19 +15,19 @@ jobs:
       KEEP: ${{ inputs.keep }}
       GH_TOKEN: ${{ secrets.PACKAGES_PAT }}  # PAT with delete:packages, read:packages, repo
     steps:
-      - name: App token
-        id: app-token
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
-        with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }} # user or org that owns the packages
+      - name: Check gh auth
+        run: gh auth status
 
-      - name: Prune untagged & old versions (user-owned packages)
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          OWNER: ${{ github.repository_owner }}
-          KEEP: "5"                    # keep N newest tagged versions (per package)
+      - name: List all container packages for user
+        id: list
+        run: |
+          set -euo pipefail
+          # One name per line, raw (can contain /)
+          gh api "/users/$OWNER/packages" -F package_type=container --paginate -q '.[].name' > /tmp/packages.txt
+          echo "Found packages:"
+          cat /tmp/packages.txt
+
+      - name: Prune packages
         run: |
           set -euo pipefail
           while IFS= read -r PKG; do
