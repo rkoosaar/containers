@@ -1,8 +1,8 @@
 name: Mirror Firefly III → GHCR
 
 on:
-  schedule:
-    - cron: "17 4 * * *"   # daily; adjust as desired
+  # schedule:
+  #   - cron: "17 4 * * *"   # daily; adjust as desired
   workflow_dispatch: {}
 
 jobs:
