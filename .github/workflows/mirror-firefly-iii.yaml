@@ -1,8 +1,8 @@
 name: Mirror Firefly III → GHCR (core + DATA-IMPORTER)
 
 on:
-  schedule:
-    - cron: "37 4 * * *"        # daily
+  # schedule:
+  #   - cron: "37 4 * * *"        # daily
   workflow_dispatch: {}
 
 jobs:
