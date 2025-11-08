@@ -1,64 +1,60 @@
-name: Prune GHCR
+name: Nuke all GHCR packages (USER)
+
 on:
-  workflow_dispatch:
-    inputs:
-      keep:
-        description: "Keep newest N tagged versions"
-        default: "5"
+  workflow_dispatch: {}
 
 jobs:
-  prune:
+  nuke-user-ghcr:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # REQUIRED to delete package versions
-    runs-on: ubuntu-latest
+      packages: write   # IMPORTANT for deleting package versions
     steps:
-      - name: Create app token
-        id: app-token
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+      - id: app-token
+        name: Get GitHub App token
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
+          owner: rkoosaar
 
-      - name: Prune all user-owned GHCR packages
+      - name: Delete ALL container packages + versions (user)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          OWNER: ${{ github.repository_owner }}
-          KEEP: ${{ inputs.keep }}
+          OWNER: rkoosaar
         shell: bash
         run: |
           set -euo pipefail
 
-          # list package NAMES for the user (container packages only)
-          mapfile -t PKGS < <(gh api "/users/$OWNER/packages" -F package_type=container --paginate -q '.[].name')
+          echo "Listing container packages for user '$OWNER'..."
+          # get package names
+          mapfile -t PKGS < <(gh api "/users/$OWNER/packages" \
+            -F package_type=container --paginate -q '.[].name')
 
           if [[ ${#PKGS[@]} -eq 0 ]]; then
-            echo "No container packages found for user $OWNER"
+            echo "No container packages found for user '$OWNER'. Done."
             exit 0
           fi
 
           for PKG in "${PKGS[@]}"; do
-            # URL-encode the package name for the path segments
             ENC=$(jq -rn --arg s "$PKG" '$s|@uri')
+            echo "::group::Purging package: $PKG"
 
-            echo "::group::Pruning package $PKG"
+            # 1) delete ALL versions (tagged + untagged)
+            mapfile -t VERS < <(gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" \
+              --paginate -q '.[].id' || true)
 
-            # 1) delete all UNTAGGED versions
-            gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
-              -q '.[] | select((.metadata.container.tags|length)==0) | .id' \
-            | while IFS= read -r VID; do
-                echo "Delete UNTAGGED version $VID"
+            if [[ ${#VERS[@]} -eq 0 ]]; then
+              echo "No versions found for $PKG"
+            else
+              for VID in "${VERS[@]}"; do
+                echo "DELETE version $VID"
                 gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
               done
+            fi
 
-            # 2) keep newest $KEEP tagged; delete the rest
-            gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
-              -q "[.[] | select((.metadata.container.tags|length)>0)] | sort_by(.created_at) | reverse | .[$KEEP:] | .[].id" \
-            | while IFS= read -r VID; do
-                echo "Delete OLD tagged version $VID"
-                gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
-              done
+            # 2) try to delete the empty package shell
+            gh api -X DELETE "/users/$OWNER/packages/container/$ENC" || true
 
             echo "::endgroup::"
           done
