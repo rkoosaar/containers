@@ -1,59 +1,64 @@
-name: GHCR prune (user)
+name: Prune GHCR
 on:
   workflow_dispatch:
     inputs:
       keep:
-        description: "How many latest tagged versions to keep"
-        required: true
+        description: "Keep newest N tagged versions"
         default: "5"
 
 jobs:
   prune:
-    runs-on: ubuntu-latest
     permissions:
-      packages: write
       contents: read
+      packages: write   # REQUIRED to delete package versions
+    runs-on: ubuntu-latest
     steps:
-      - name: Mint GitHub App token
-        id: app
-        uses: actions/create-github-app-token@v2
+      - name: Create app token
+        id: app-token
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Set GH_TOKEN
-        run: echo "GH_TOKEN=${{ steps.app.outputs.token }}" >> $GITHUB_ENV
-
-      - name: Prune all user-owned container packages
+      - name: Prune all user-owned GHCR packages
         env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           OWNER: ${{ github.repository_owner }}
-          KEEP: ${{ github.event.inputs.keep }}
+          KEEP: ${{ inputs.keep }}
         shell: bash
         run: |
           set -euo pipefail
-          # List package *names* under the user (not org). For orgs, switch /users -> /orgs.
-          gh api "/users/$OWNER/packages?package_type=container&per_page=100" --paginate -q '.[].name' \
-          | while IFS= read -r PKG; do
-              # URL-encode name (handles weird names)
-              ENC=$(jq -rn --arg s "$PKG" '$s|@uri')
-              echo "::group::Pruning package $PKG"
 
-              # 1) delete all UNTAGGED versions
-              gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
-                 -q '.[] | select((.metadata.container.tags|length)==0) | .id' \
-              | while IFS= read -r VID; do
-                  echo "Delete UNTAGGED $VID"
-                  gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
-                done
+          # list package NAMES for the user (container packages only)
+          mapfile -t PKGS < <(gh api "/users/$OWNER/packages" -F package_type=container --paginate -q '.[].name')
 
-              # 2) keep newest $KEEP tagged, delete the rest
-              gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
-                 -q "[.[] | select((.metadata.container.tags|length)>0)] | sort_by(.created_at) | reverse | .[$KEEP:] | .[].id" \
-              | while IFS= read -r VID; do
-                  echo "Delete OLD tagged $VID"
-                  gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
-                done
+          if [[ ${#PKGS[@]} -eq 0 ]]; then
+            echo "No container packages found for user $OWNER"
+            exit 0
+          fi
 
-              echo "::endgroup::"
-            done
+          for PKG in "${PKGS[@]}"; do
+            # URL-encode the package name for the path segments
+            ENC=$(jq -rn --arg s "$PKG" '$s|@uri')
+
+            echo "::group::Pruning package $PKG"
+
+            # 1) delete all UNTAGGED versions
+            gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
+              -q '.[] | select((.metadata.container.tags|length)==0) | .id' \
+            | while IFS= read -r VID; do
+                echo "Delete UNTAGGED version $VID"
+                gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
+              done
+
+            # 2) keep newest $KEEP tagged; delete the rest
+            gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate \
+              -q "[.[] | select((.metadata.container.tags|length)>0)] | sort_by(.created_at) | reverse | .[$KEEP:] | .[].id" \
+            | while IFS= read -r VID; do
+                echo "Delete OLD tagged version $VID"
+                gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
+              done
+
+            echo "::endgroup::"
+          done
