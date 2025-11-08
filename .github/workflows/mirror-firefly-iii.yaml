@@ -1,133 +1,22 @@
-name: Mirror Firefly III → GHCR (latest + version-x.y.z)
+name: Mirror Firefly III to GHCR
 
 on:
   # schedule:
-  #   - cron: "37 4 * * *"      # daily; adjust as you like
+  #   - cron: "0 3 * * *" # daily
   workflow_dispatch:
-    inputs:
-      upstream_tag:
-        description: "Upstream tag to mirror (use 'latest' for the moving tag)"
-        required: true
-        default: "latest"
-      mirror_importer:
-        description: "Also mirror data-importer image"
-        required: true
-        default: "false"
-        type: choice
-        options: ["false", "true"]
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write       # needed to push to GHCR
-    env:
-      OWNER: ${{ github.repository_owner }}
-      SRC_REG: docker.io
-      SRC_REPO_CORE: fireflyiii/core
-      SRC_REPO_IMPORTER: fireflyiii/data-importer
-      DEST_REG: ghcr.io
-      DEST_NAME_CORE: firefly-iii
-      DEST_NAME_IMPORTER: firefly-iii-importer
-      UPSTREAM_TAG: ${{ github.event.inputs.upstream_tag || 'latest' }}
+      packages: write   # <— REQUIRED for GHCR push
     steps:
-      - name: Install skopeo & jq
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y skopeo jq
-
-      - name: Resolve upstream version (try labels first, fallback to digest)
-        id: resolve
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # 1) Inspect upstream 'core' for version label (no Docker Hub login)
-          #    We prefer OCI-style labels; adjust fallbacks as needed.
-          #    skopeo inspect --config prints image config JSON (labels in .config.Labels)
-          meta_json="$(skopeo inspect --config docker://${SRC_REG}/${SRC_REPO_CORE}:${UPSTREAM_TAG})"
-
-          # Try common label keys first
-          version=$(
-            echo "$meta_json" \
-            | jq -r '
-                .config.Labels["org.opencontainers.image.version"] //
-                .config.Labels["org.label-schema.version"] //
-                .config.Labels["version"] //
-                empty
-              ' | head -n1
-          )
-
-          # If label missing or "null", fall back to digest (stable but not pretty)
-          if [[ -z "${version:-}" || "${version}" == "null" ]]; then
-            digest="$(skopeo inspect docker://${SRC_REG}/${SRC_REPO_CORE}:${UPSTREAM_TAG} | jq -r .Digest)"
-            # produce a safe tag from digest (e.g., sha256-abcdef...)
-            version="sha256-$(echo "$digest" | cut -d: -f2 | cut -c1-12)"
-          fi
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Mirror core → GHCR (keep upstream platforms)
+      - name: Mirror core → GHCR (multi-arch)
         uses: redhat-actions/skopeo-copy@v2
         with:
-          src: docker://${{ env.SRC_REG }}/${{ env.SRC_REPO_CORE }}:${{ env.UPSTREAM_TAG }}
-          dest: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_CORE }}:${{ env.UPSTREAM_TAG }}
-          dest-username: ${{ github.actor }}
-          dest-password: ${{ secrets.GITHUB_TOKEN }}
-          multi-arch: true
-
-      - name: Tag core as latest
-        uses: redhat-actions/skopeo-copy@v2
-        with:
-          src: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_CORE }}:${{ env.UPSTREAM_TAG }}
-          dest: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_CORE }}:latest
-          dest-username: ${{ github.actor }}
-          dest-password: ${{ secrets.GITHUB_TOKEN }}
-          multi-arch: true
-
-      - name: Tag core as version-x.y.z
-        uses: redhat-actions/skopeo-copy@v2
-        with:
-          src: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_CORE }}:${{ env.UPSTREAM_TAG }}
-          dest: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_CORE }}:version-${{ steps.resolve.outputs.version }}
-          dest-username: ${{ github.actor }}
-          dest-password: ${{ secrets.GITHUB_TOKEN }}
-          multi-arch: true
-
-      - name: Mirror importer (optional)
-        if: ${{ github.event.inputs.mirror_importer == 'true' }}
-        uses: redhat-actions/skopeo-copy@v2
-        with:
-          src: docker://${{ env.SRC_REG }}/${{ env.SRC_REPO_IMPORTER }}:${{ env.UPSTREAM_TAG }}
-          dest: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_IMPORTER }}:${{ env.UPSTREAM_TAG }}
-          dest-username: ${{ github.actor }}
-          dest-password: ${{ secrets.GITHUB_TOKEN }}
-          multi-arch: true
-
-      - name: Tag importer as latest (optional)
-        if: ${{ github.event.inputs.mirror_importer == 'true' }}
-        uses: redhat-actions/skopeo-copy@v2
-        with:
-          src: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_IMPORTER }}:${{ env.UPSTREAM_TAG }}
-          dest: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_IMPORTER }}:latest
-          dest-username: ${{ github.actor }}
-          dest-password: ${{ secrets.GITHUB_TOKEN }}
-          multi-arch: true
-
-      - name: Tag importer as version-x.y.z (optional)
-        if: ${{ github.event.inputs.mirror_importer == 'true' }}
-        uses: redhat-actions/skopeo-copy@v2
-        with:
-          src: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_IMPORTER }}:${{ env.UPSTREAM_TAG }}
-          dest: docker://${{ env.DEST_REG }}/${{ env.OWNER }}/${{ env.DEST_NAME_IMPORTER }}:version-${{ steps.resolve.outputs.version }}
+          src: docker://docker.io/fireflyiii/core:latest
+          dest: docker://ghcr.io/${{ github.repository_owner }}/firefly-iii:latest
           dest-username: ${{ github.actor }}
           dest-password: ${{ secrets.GITHUB_TOKEN }}
           multi-arch: true
