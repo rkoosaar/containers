@@ -1,4 +1,4 @@
-name: Mirror Firefly III → GHCR (core + DATA-IMPORTER)
+name: Mirror Firefly-III
 
 on:
   # schedule:
