@@ -1,109 +1,207 @@
-# .github/workflows/mirror-firefly-iii.yml
-name: Mirror Firefly III → GHCR (latest + version-x.y.z)
-
+name: Mirror Firefly III → GHCR (latest + pinned versions)
 on:
   # schedule:
-  #   - cron: "37 4 * * *"     # daily; adjust as you like
-  workflow_dispatch:
-    inputs:
-      upstream_tag:
-        description: "Upstream tag to mirror (e.g. latest or 6.1.14)"
-        required: true
-        default: "latest"
-      mirror_importer:
-        description: "Also mirror data-importer"
-        required: true
-        default: "false"
-        type: choice
-        options: ["false", "true"]
+  #   - cron: "37 4 * * *"    # daily
+  workflow_dispatch: {}
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # needed to push to GHCR
+      packages: write   # push to GHCR with GITHUB_TOKEN
     env:
       OWNER: ${{ github.repository_owner }}
-      SRC_REG: docker.io
-      CORE_REPO: fireflyiii/core
-      IMPORTER_REPO: fireflyiii/data-importer
       DEST_REG: ghcr.io
+
+      # Upstream (no Docker login required)
+      SRC_REG: docker.io
+      SRC_CORE: fireflyiii/core
+      SRC_IMPORTER: fireflyiii/data-importer
+
+      # Our GHCR repositories
       DEST_CORE: firefly-iii
       DEST_IMPORTER: firefly-iii-importer
-      UPSTREAM_TAG: ${{ github.event.inputs.upstream_tag || 'latest' }}
+
+      # Fixed version lists you asked for
+      CORE_FIXED_TAGS: "version-6.2.10 version-6.2.21 version-6.3.0 version-6.3.2 version-6.4.0 version-6.4.4 version-6.4.5"
+      IMPORTER_FIXED_TAGS: "version-1.5.1 version-1.6.1 version-1.7.1 version-1.7.10 version-1.8.1 version-1.8.4 version-1.9.0"
     steps:
       - name: Install skopeo & jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y skopeo jq
 
-      - name: Resolve upstream version (labels → fallback to digest)
-        id: resolve
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Helpers (functions)
+        id: helpers
+        shell: bash
+        run: |
+          cat > helpers.sh <<'EOF'
+          set -euo pipefail
+
+          ghcr_exists() {
+            local image="$1" tag="$2"
+            skopeo inspect "docker://${image}:${tag}" >/dev/null 2>&1
+          }
+
+          # copy source ref -> dest ref (multi-arch)
+          do_copy() {
+            local src="$1" dest="$2"
+            echo "⏩ Copying $src -> $dest"
+            skopeo copy --all "docker://${src}" "docker://${dest}"
+          }
+
+          # Resolve x.y.z from image labels; fallback to digest stub
+          resolve_version_from_label() {
+            local ref="$1"  # e.g. docker.io/fireflyiii/core:latest
+            local cfg
+            cfg="$(skopeo inspect --config "docker://${ref}")"
+            local ver
+            ver="$(echo "$cfg" | jq -r '
+              .config.Labels["org.opencontainers.image.version"] //
+              .config.Labels["org.label-schema.version"] //
+              .config.Labels["version"] // empty
+            ' | head -n1)"
+            if [[ -z "${ver:-}" || "$ver" == "null" ]]; then
+              local d
+              d="$(skopeo inspect "docker://${ref}" | jq -r .Digest)"
+              ver="sha256-$(echo "$d" | cut -d: -f2 | cut -c1-12)"
+            fi
+            echo "$ver"
+          }
+
+          # Given "version-6.4.5" or "6.4.5" -> returns "6.4.5"
+          plain_numeric() {
+            local t="$1"
+            echo "${t#version-}"
+          }
+          EOF
+          echo "helpers_ready=1" >> "$GITHUB_OUTPUT"
+
+      - name: Mirror Firefly core: latest + derived tags
+        if: steps.helpers.outputs.helpers_ready == '1'
         shell: bash
         run: |
           set -euo pipefail
-          cfg_json="$(skopeo inspect --config docker://${SRC_REG}/${CORE_REPO}:${UPSTREAM_TAG})"
-          version=$(
-            echo "$cfg_json" | jq -r '
-              .config.Labels["org.opencontainers.image.version"] //
-              .config.Labels["org.label-schema.version"] //
-              .config.Labels["version"] //
-              empty
-            ' | head -n1
-          )
-          if [[ -z "${version:-}" || "${version}" == "null" ]]; then
-            digest="$(skopeo inspect docker://${SRC_REG}/${CORE_REPO}:${UPSTREAM_TAG} | jq -r .Digest)"
-            version="sha256-$(echo "$digest" | cut -d: -f2 | cut -c1-12)"
+          source helpers.sh
+
+          SRC="${SRC_REG}/${SRC_CORE}:latest"
+          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_CORE}"
+
+          # Mirror upstream 'latest' (skip if already exists)
+          if ghcr_exists "${DEST_BASE}" "latest"; then
+            echo "✅ core:latest already in GHCR — skipping copy"
+          else
+            do_copy "${SRC}" "${DEST_BASE}:latest"
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # Resolve x.y.z from upstream latest
+          CORE_VER="$(resolve_version_from_label "${SRC_REG}/${SRC_CORE}:latest")"
+          echo "Resolved core version from label: ${CORE_VER}"
 
-      # --- Core image ---
-      - name: Mirror core → GHCR (preserve all platforms)
+          # Tag 'version-x.y.z' (skip-if-exists)
+          if ghcr_exists "${DEST_BASE}" "version-${CORE_VER}"; then
+            echo "✅ core:version-${CORE_VER} exists — skipping"
+          else
+            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:version-${CORE_VER}"
+          fi
+
+          # Tag plain numeric 'x.y.z' (skip-if-exists)
+          if ghcr_exists "${DEST_BASE}" "${CORE_VER}"; then
+            echo "✅ core:${CORE_VER} exists — skipping"
+          else
+            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:${CORE_VER}"
+          fi
+
+      - name: Mirror Firefly core: specific version list
+        shell: bash
         run: |
-          skopeo copy --all \
-            docker://${SRC_REG}/${CORE_REPO}:${UPSTREAM_TAG} \
-            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:${UPSTREAM_TAG} \
-            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+          set -euo pipefail
+          source helpers.sh
 
-      - name: Tag core as latest
-        run: |
-          skopeo copy --all \
-            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:${UPSTREAM_TAG} \
-            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:latest \
-            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_CORE}"
+          for TAG in ${CORE_FIXED_TAGS}; do
+            SRC="${SRC_REG}/${SRC_CORE}:${TAG}"
 
-      - name: Tag core as version-x.y.z
-        run: |
-          skopeo copy --all \
-            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:${UPSTREAM_TAG} \
-            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:version-${{ steps.resolve.outputs.version }} \
-            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+            # 1) Ensure 'version-x.y.z'
+            if ghcr_exists "${DEST_BASE}" "${TAG}"; then
+              echo "✅ core:${TAG} already exists — skipping"
+            else
+              do_copy "${SRC}" "${DEST_BASE}:${TAG}"
+            fi
 
-      # --- Importer (optional) ---
-      - name: Mirror importer → GHCR
-        if: ${{ github.event.inputs.mirror_importer == 'true' }}
-        run: |
-          skopeo copy --all \
-            docker://${SRC_REG}/${IMPORTER_REPO}:${UPSTREAM_TAG} \
-            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:${UPSTREAM_TAG} \
-            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+            # 2) Also add plain numeric tag x.y.z
+            NUM="$(plain_numeric "${TAG}")"
+            if ghcr_exists "${DEST_BASE}" "${NUM}"; then
+              echo "✅ core:${NUM} already exists — skipping"
+            else
+              do_copy "${DEST_BASE}:${TAG}" "${DEST_BASE}:${NUM}"
+            fi
+          done
 
-      - name: Tag importer as latest
-        if: ${{ github.event.inputs.mirror_importer == 'true' }}
+      - name: Mirror data-importer: latest + derived tags
+        shell: bash
         run: |
-          skopeo copy --all \
-            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:${UPSTREAM_TAG} \
-            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:latest \
-            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+          set -euo pipefail
+          source helpers.sh
 
-      - name: Tag importer as version-x.y.z
-        if: ${{ github.event.inputs.mirror_importer == 'true' }}
+          SRC="${SRC_REG}/${SRC_IMPORTER}:latest"
+          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_IMPORTER}"
+
+          # Mirror 'latest' (skip-if-exists)
+          if ghcr_exists "${DEST_BASE}" "latest"; then
+            echo "✅ importer:latest already in GHCR — skipping"
+          else
+            do_copy "${SRC}" "${DEST_BASE}:latest"
+          fi
+
+          # Resolve newest version from labels on upstream latest
+          IMP_VER="$(resolve_version_from_label "${SRC_REG}/${SRC_IMPORTER}:latest")"
+          echo "Resolved importer version from label: ${IMP_VER}"
+
+          # Tag 'version-x.y.z'
+          if ghcr_exists "${DEST_BASE}" "version-${IMP_VER}"; then
+            echo "✅ importer:version-${IMP_VER} exists — skipping"
+          else
+            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:version-${IMP_VER}"
+          fi
+
+          # Tag plain numeric 'x.y.z'
+          if ghcr_exists "${DEST_BASE}" "${IMP_VER}"; then
+            echo "✅ importer:${IMP_VER} exists — skipping"
+          else
+            do_copy "${DEST_BASE}:latest" "${DEST_BASE}:${IMP_VER}"
+          fi
+
+      - name: Mirror data-importer: specific version list
+        shell: bash
         run: |
-          skopeo copy --all \
-            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:${UPSTREAM_TAG} \
-            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:version-${{ steps.resolve.outputs.version }} \
-            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+          set -euo pipefail
+          source helpers.sh
+
+          DEST_BASE="${DEST_REG}/${OWNER}/${DEST_IMPORTER}"
+          for TAG in ${IMPORTER_FIXED_TAGS}; do
+            SRC="${SRC_REG}/${SRC_IMPORTER}:${TAG}"
+
+            # 1) Ensure 'version-x.y.z'
+            if ghcr_exists "${DEST_BASE}" "${TAG}"; then
+              echo "✅ importer:${TAG} already exists — skipping"
+            else
+              do_copy "${SRC}" "${DEST_BASE}:${TAG}"
+            fi
+
+            # 2) Also add plain numeric tag x.y.z
+            NUM="$(plain_numeric "${TAG}")"
+            if ghcr_exists "${DEST_BASE}" "${NUM}"; then
+              echo "✅ importer:${NUM} already exists — skipping"
+            else
+              do_copy "${DEST_BASE}:${TAG}" "${DEST_BASE}:${NUM}"
+            fi
+          done
