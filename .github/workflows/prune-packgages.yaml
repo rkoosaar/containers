@@ -1,14 +1,23 @@
 name: Prune GHCR
 on:
   workflow_dispatch:
+    inputs:
+      keep:
+        description: "How many newest tagged versions to keep"
+        required: true
+        default: "5"
 
 jobs:
   prune:
     runs-on: ubuntu-latest
+    env:
+      OWNER: rkoosaar
+      KEEP: ${{ inputs.keep }}
+      GH_TOKEN: ${{ secrets.PACKAGES_PAT }}  # PAT with delete:packages, read:packages, repo
     steps:
       - name: App token
         id: app-token
-        uses: actions/create-github-app-token@b96fde71c0080358ed6e2d162f11c612c92a97d1
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
@@ -21,26 +30,28 @@ jobs:
           KEEP: "5"                    # keep N newest tagged versions (per package)
         run: |
           set -euo pipefail
+          while IFS= read -r PKG; do
+            [ -z "$PKG" ] && continue
+            echo "::group::Pruning $PKG"
 
-          # List all container package NAMES under the user (change /users -> /orgs for org-owned)
-          gh api "/users/$OWNER/packages" -F package_type=container --paginate -q '.[].name' | while read -r PKG; do
-            echo "::group::Pruning package $PKG"
+            # URL-encode the package name for API paths
+            PKG_ENC=$(printf '%s' "$PKG" | jq -sRr @uri)
 
-            # 1) Delete all UNTAGGED versions
-            gh api "/users/$OWNER/packages/container/$PKG/versions" --paginate \
-              -q '.[] | select(.metadata.container.tags|length==0) | .id' | while read -r VID; do
-              echo "Delete UNTAGGED version $VID"
-              gh api -X DELETE "/users/$OWNER/packages/container/$PKG/versions/$VID" || true
-            done
+            # 1) delete UNTAGGED versions
+            gh api "/users/$OWNER/packages/container/$PKG_ENC/versions" --paginate \
+              -q '.[] | select(.metadata.container.tags|length==0) | .id' \
+            | while read -r VID; do
+                echo "Delete UNTAGGED version $VID"
+                gh api -X DELETE "/users/$OWNER/packages/container/$PKG_ENC/versions/$VID" || true
+              done
 
-            # 2) Keep the newest $KEEP tagged; delete the rest
-            #    Sort by created_at desc, skip first $KEEP, delete remaining
-            gh api "/users/$OWNER/packages/container/$PKG/versions" --paginate \
+            # 2) keep newest $KEEP tagged; delete the rest
+            gh api "/users/$OWNER/packages/container/$PKG_ENC/versions" --paginate \
               -q "[.[] | select(.metadata.container.tags|length>0)] | sort_by(.created_at) | reverse | .[$KEEP:] | .[].id" \
-              | while read -r VID; do
+            | while read -r VID; do
                 echo "Delete OLD tagged version $VID"
-                gh api -X DELETE "/users/$OWNER/packages/container/$PKG/versions/$VID" || true
+                gh api -X DELETE "/users/$OWNER/packages/container/$PKG_ENC/versions/$VID" || true
               done
 
             echo "::endgroup::"
-          done
+          done < /tmp/packages.txt
