@@ -1,4 +1,4 @@
-.goss
+.cache
 .private
-**/*.pyc
+docker-bake.json
 _merge_to_apps

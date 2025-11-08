@@ -1,42 +1,15 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: "Renovate"
+name: Renovate
 
 on:
-  workflow_dispatch:
-    inputs:
-      dryRun:
-        description: Dry Run
-        default: "false"
-        required: false
-      logLevel:
-        description: Log Level
-        default: debug
-        required: false
-      version:
-        description: Renovate version
-        default: latest
-        required: false
-  schedule:
-    - cron: "0 * * * *" # Every hour
   push:
-    branches: ["main"]
+    branches:
+      - main
     paths:
-      - .github/renovate.json5
-      - .github/renovate/**.json5
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
-  cancel-in-progress: true
-
-env:
-  LOG_LEVEL: "${{ inputs.logLevel || 'debug' }}"
-  RENOVATE_AUTODISCOVER: true
-  RENOVATE_AUTODISCOVER_FILTER: "${{ github.repository }}"
-  RENOVATE_DRY_RUN: "${{ inputs.dryRun == true }}"
-  RENOVATE_PLATFORM: github
-  RENOVATE_PLATFORM_COMMIT: true
-  WORKFLOW_RENOVATE_VERSION: "${{ inputs.version || 'latest' }}"
+      - .renovaterc.json5
+      - .renovate/**.json5
+  workflow_dispatch:
 
 jobs:
   renovate:
@@ -44,20 +17,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate Token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
         id: app-token
         with:
-          app-id: "${{ secrets.BOT_APP_ID }}"
-          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Run Renovate
+        uses: codex-/return-dispatch@72a3b5d4ff36e4319a7b1ab5b686c778ee02fa37 # v2.1.0
+        id: dispatch
         with:
-          token: "${{ steps.app-token.outputs.token }}"
+          token: ${{ steps.app-token.outputs.token }}
+          owner: ${{ github.repository_owner }}
+          repo: .github
+          ref: main
+          workflow: renovate.yaml
+          workflow_inputs: |-
+            { "autodiscoverFilter": "${{ github.event.repository.name }}" }
 
-      - name: Renovate
-        uses: renovatebot/github-action@v41.0.14
+      - name: Await Renovate Completion
+        uses: Codex-/await-remote-run@a56c556e6434d2d7ec9438dc656143b39532324e # v1.13.0
         with:
-          configurationFile: .github/renovate.json5
-          token: "${{ steps.app-token.outputs.token }}"
-          renovate-version: "${{ env.WORKFLOW_RENOVATE_VERSION }}"
+          token: ${{ steps.app-token.outputs.token }}
+          owner: ${{ github.repository_owner }}
+          repo: .github
+          run_id: ${{ steps.dispatch.outputs.run_id }}
+
+      - name: Renovate Output
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |-
+          gh run view --repo ${{ github.repository_owner }}/.github --log ${{ steps.dispatch.outputs.run_id }}
