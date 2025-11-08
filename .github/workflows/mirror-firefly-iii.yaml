@@ -1,8 +1,8 @@
-name: Mirror Firefly III → GHCR
+name: Mirror Firefly III → GHCR (core + DATA-IMPORTER)
 
 on:
-  # schedule:
-  #   - cron: "17 4 * * *"   # daily; adjust as desired
+  schedule:
+    - cron: "37 4 * * *"        # daily
   workflow_dispatch: {}
 
 jobs:
@@ -10,166 +10,130 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # required to push to GHCR
+      packages: write
     env:
       OWNER: ${{ github.repository_owner }}
       SRC_REG: docker.io
-      SRC_CORE: fireflyiii/core
-      SRC_IMPORTER: fireflyiii/data-importer
       DEST_REG: ghcr.io
+
+      # Upstream repos
+      SRC_CORE: fireflyiii/core
+      SRC_DATA_IMPORTER: fireflyiii/data-importer
+
+      # Destination names in GHCR
       DEST_CORE: firefly-iii
-      DEST_IMPORTER: firefly-iii-importer
+      DEST_DATA_IMPORTER: firefly-iii-data-importer
 
-      # Fixed version lists you asked for
-      CORE_FIXED: "version-6.2.10 version-6.2.21 version-6.3.0 version-6.3.2 version-6.4.0 version-6.4.4 version-6.4.5"
-      IMPORTER_FIXED: "version-1.5.1 version-1.6.1 version-1.7.1 version-1.7.10 version-1.8.1 version-1.8.4 version-1.9.0"
-
+      # Static version sets to ensure are mirrored (numeric only; we'll also add version-*)
+      CORE_VERSIONS: "6.2.10 6.2.21 6.3.0 6.3.2 6.4.0 6.4.4 6.4.5"
+      DATA_IMPORTER_VERSIONS: "1.5.1 1.6.1 1.7.1 1.7.10 1.8.1 1.8.4 1.9.0"
     steps:
       - name: Install skopeo & jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y skopeo jq
 
-      - name: Log in to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Define helper functions
+      - name: Resolve CORE latest version (from labels or digest)
+        id: corever
         shell: bash
         run: |
           set -euo pipefail
+          meta_json="$(skopeo inspect --config docker://${SRC_REG}/${SRC_CORE}:latest)"
+          ver="$(echo "$meta_json" \
+            | jq -r '.config.Labels["org.opencontainers.image.version"]
+                      // .config.Labels["org.label-schema.version"]
+                      // .config.Labels["version"]
+                      // empty' | head -n1)"
+          if [[ -z "${ver:-}" || "${ver}" == "null" ]]; then
+            digest="$(skopeo inspect docker://${SRC_REG}/${SRC_CORE}:latest | jq -r .Digest)"
+            ver="sha256-$(echo "$digest" | cut -d: -f2 | cut -c1-12)"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
 
-          cat > helpers.sh <<'EOF'
+      - name: Resolve DATA-IMPORTER latest version (from labels or digest)
+        id: divever
+        shell: bash
+        run: |
+          set -euo pipefail
+          meta_json="$(skopeo inspect --config docker://${SRC_REG}/${SRC_DATA_IMPORTER}:latest)"
+          ver="$(echo "$meta_json" \
+            | jq -r '.config.Labels["org.opencontainers.image.version"]
+                      // .config.Labels["org.label-schema.version"]
+                      // .config.Labels["version"]
+                      // empty' | head -n1)"
+          if [[ -z "${ver:-}" || "${ver}" == "null" ]]; then
+            digest="$(skopeo inspect docker://${SRC_REG}/${SRC_DATA_IMPORTER}:latest | jq -r .Digest)"
+            ver="sha256-$(echo "$digest" | cut -d: -f2 | cut -c1-12)"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: GHCR login (for pushes)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login --username "${{ github.actor }}" --password-stdin ${DEST_REG}
+
+      - name: Helper | copy_if_missing()
+        id: helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/copy_if_missing.sh <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
-
-          exists_on_ghcr() {
-            local repo="$1" tag="$2"
-            if skopeo inspect "docker://ghcr.io/${{ env.OWNER }}/${repo}:${tag}" >/dev/null 2>&1; then
-              return 0
-            else
-              return 1
+          SRC_REF="$1"; shift
+          DEST_BASE="$1"; shift
+          # Remaining args are tags to create at DEST_BASE
+          for TAG in "$@"; do
+            DEST_REF="${DEST_BASE}:${TAG}"
+            if skopeo inspect "docker://${DEST_REF}" >/dev/null 2>&1; then
+              echo "✅ Skip (exists): ${DEST_REF}"
+              continue
             fi
-          }
-
-          # Copy from Docker Hub upstream to GHCR (multi-arch), but skip if dest tag exists
-          copy_from_upstream_if_missing() {
-            local src_repo="$1" src_tag="$2" dest_repo="$3" dest_tag="$4"
-            if exists_on_ghcr "$dest_repo" "$dest_tag"; then
-              echo "✓ Skip: ghcr.io/${{ env.OWNER }}/${dest_repo}:${dest_tag} already exists"
-              return 0
-            fi
-            echo "→ Copy: docker://${{ env.SRC_REG }}/${src_repo}:${src_tag} → ghcr.io/${{ env.OWNER }}/${dest_repo}:${dest_tag}"
-            skopeo copy --all \
-              "docker://${{ env.SRC_REG }}/${src_repo}:${src_tag}" \
-              "docker://ghcr.io/${{ env.OWNER }}/${dest_repo}:${dest_tag}"
-          }
-
-          # Create/ensure an alias tag on GHCR by copying GHCR→GHCR (cheap and fast), skip if exists
-          alias_tag_if_missing() {
-            local repo="$1" existing_tag="$2" new_tag="$3"
-            if exists_on_ghcr "$repo" "$new_tag"; then
-              echo "✓ Skip alias: ghcr.io/${{ env.OWNER }}/${repo}:${new_tag} exists"
-              return 0
-            fi
-            echo "→ Alias: ghcr.io/${{ env.OWNER }}/${repo}:${existing_tag} → :${new_tag}"
-            skopeo copy --all \
-              "docker://ghcr.io/${{ env.OWNER }}/${repo}:${existing_tag}" \
-              "docker://ghcr.io/${{ env.OWNER }}/${repo}:${new_tag}"
-          }
-
-          # Extract upstream version label for a given (upstream) repo:tag.
-          resolve_version_label() {
-            local upstream_repo="$1" upstream_tag="$2"
-            local cfg
-            if ! cfg="$(skopeo inspect --config "docker://${{ env.SRC_REG }}/${upstream_repo}:${upstream_tag}")"; then
-              echo ""
-              return 0
-            fi
-            local v
-            v="$(echo "$cfg" | jq -r '
-              .config.Labels["org.opencontainers.image.version"] //
-              .config.Labels["org.label-schema.version"] //
-              .config.Labels["version"] //
-              empty
-            ')"
-            echo "$v"
-          }
-
-          # From "version-x.y.z" → "x.y.z"
-          strip_prefix_version() {
-            local tag="$1"
-            echo "$tag" | sed -E 's/^version-//'
-          }
-
-          # Quick x.y.z sanity check
-          is_semver_triplet() {
-            [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          }
+            echo "→ Copying ${SRC_REF}  →  ${DEST_REF}"
+            skopeo copy --all "docker://${SRC_REF}" "docker://${DEST_REF}"
+          done
           EOF
+          chmod +x /tmp/copy_if_missing.sh
 
-          chmod +x helpers.sh
-
-      - name: Mirror CORE (latest + derived tags + fixed versions)
+      # =======================
+      # CORE (latest + pinned)
+      # =======================
+      - name: CORE | Mirror latest → latest, version-x.y.z, x.y.z
         shell: bash
         run: |
           set -euo pipefail
-          source ./helpers.sh
+          CORE_LATEST_VER="${{ steps.corever.outputs.version }}"
+          SRC="{$SRC_REG}/${SRC_CORE}:latest"
+          DEST="${DEST_REG}/${OWNER}/${DEST_CORE}"
+          /tmp/copy_if_missing.sh "${SRC}" "${DEST}" "latest" "version-${CORE_LATEST_VER}" "${CORE_LATEST_VER}"
 
-          # 1) Mirror upstream "latest" to GHCR
-          copy_from_upstream_if_missing "${SRC_CORE}" "latest" "${DEST_CORE}" "latest"
-
-          # 2) Resolve the upstream version for latest, then add version-x.y.z and numeric x.y.z aliases
-          core_ver="$(resolve_version_label "${SRC_CORE}" "latest" || true)"
-          if [[ -n "${core_ver}" && "${core_ver}" != "null" ]]; then
-            if is_semver_triplet "${core_ver}"; then
-              alias_tag_if_missing "${DEST_CORE}" "latest" "version-${core_ver}"
-              alias_tag_if_missing "${DEST_CORE}" "latest" "${core_ver}"
-            else
-              echo "Note: resolved version '${core_ver}' does not look like x.y.z; skipping numeric alias."
-              alias_tag_if_missing "${DEST_CORE}" "latest" "version-${core_ver}"
-            fi
-          else
-            echo "Note: no version label found on upstream CORE:latest; only 'latest' will be updated."
-          fi
-
-          # 3) Copy fixed CORE versions you listed, and add numeric tag alongside
-          for tag in ${CORE_FIXED}; do
-            copy_from_upstream_if_missing "${SRC_CORE}" "${tag}" "${DEST_CORE}" "${tag}"
-            numeric="$(strip_prefix_version "${tag}")"
-            if is_semver_triplet "${numeric}"; then
-              alias_tag_if_missing "${DEST_CORE}" "${tag}" "${numeric}"
-            fi
+      - name: CORE | Mirror specific versions (numeric + version-*)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="${DEST_REG}/${OWNER}/${DEST_CORE}"
+          for V in ${CORE_VERSIONS}; do
+            SRC="${SRC_REG}/${SRC_CORE}:${V}"
+            /tmp/copy_if_missing.sh "${SRC}" "${DEST}" "${V}" "version-${V}"
           done
 
-      - name: Mirror IMPORTER (latest + derived tags + fixed versions)
+      # ============================
+      # DATA-IMPORTER (latest + set)
+      # ============================
+      - name: DATA-IMPORTER | Mirror latest → latest, version-x.y.z, x.y.z
         shell: bash
         run: |
           set -euo pipefail
-          source ./helpers.sh
+          DI_LATEST_VER="${{ steps.divever.outputs.version }}"
+          SRC="${SRC_REG}/${SRC_DATA_IMPORTER}:latest"
+          DEST="${DEST_REG}/${OWNER}/${DEST_DATA_IMPORTER}"
+          /tmp/copy_if_missing.sh "${SRC}" "${DEST}" "latest" "version-${DI_LATEST_VER}" "${DI_LATEST_VER}"
 
-          # 1) Mirror upstream "latest" to GHCR
-          copy_from_upstream_if_missing "${SRC_IMPORTER}" "latest" "${DEST_IMPORTER}" "latest"
-
-          # 2) Resolve importer latest version; add version-x.y.z and numeric x.y.z
-          imp_ver="$(resolve_version_label "${SRC_IMPORTER}" "latest" || true)"
-          if [[ -n "${imp_ver}" && "${imp_ver}" != "null" ]]; then
-            if is_semver_triplet "${imp_ver}"; then
-              alias_tag_if_missing "${DEST_IMPORTER}" "latest" "version-${imp_ver}"
-              alias_tag_if_missing "${DEST_IMPORTER}" "latest" "${imp_ver}"
-            else
-              echo "Note: resolved importer version '${imp_ver}' not x.y.z; skipping numeric alias."
-              alias_tag_if_missing "${DEST_IMPORTER}" "latest" "version-${imp_ver}"
-            fi
-          else
-            echo "Note: no version label found on upstream IMPORTER:latest; only 'latest' will be updated."
-          fi
-
-          # 3) Copy fixed IMPORTER versions you listed, and add numeric tag alongside
-          for tag in ${IMPORTER_FIXED}; do
-            copy_from_upstream_if_missing "${SRC_IMPORTER}" "${tag}" "${DEST_IMPORTER}" "${tag}"
-            numeric="$(strip_prefix_version "${tag}")"
-            if is_semver_triplet "${numeric}"; then
-              alias_tag_if_missing "${DEST_IMPORTER}" "${tag}" "${numeric}"
-            fi
+      - name: DATA-IMPORTER | Mirror specific versions (numeric + version-*)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="${DEST_REG}/${OWNER}/${DEST_DATA_IMPORTER}"
+          for V in ${DATA_IMPORTER_VERSIONS}; do
+            SRC="${SRC_REG}/${SRC_DATA_IMPORTER}:${V}"
+            /tmp/copy_if_missing.sh "${SRC}" "${DEST}" "${V}" "version-${V}"
           done
