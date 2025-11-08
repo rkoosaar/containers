@@ -1,63 +1,61 @@
-name: Purge ALL GHCR packages (user)
-
+name: wipe-ghcr-user
 on:
   workflow_dispatch:
 
 jobs:
-  purge-ghcr:
+  nuke-ghcr:
     runs-on: ubuntu-latest
     permissions:
-      packages: write        # required to delete package versions
       contents: read
+      packages: write   # REQUIRED for delete
+    env:
+      OWNER: rkoosaar
     steps:
-      - name: App token
-        id: app-token
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
-        with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-
-      - name: Purge all user packages (containers)
+      - name: Ensure gh has a token
+        run: echo "GH_TOKEN is ${{ github.token && 'set' || 'missing' }}"
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Delete ALL container package versions and packages (USER)
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}  # gh CLI reads this
         run: |
           set -euo pipefail
 
-          # List container package NAMES owned by the USER (switch /users -> /orgs for org-owned)
-          mapfile -t PKGS < <(gh api "/users/${OWNER}/packages" \
-                                  -F package_type=container \
-                                  --paginate \
-                                  -q '.[].name')
+          # 1) list user-owned container PACKAGE NAMES (these are NOT repo names)
+          mapfile -t PKGS < <(
+            gh api "/users/$OWNER/packages" -F package_type=container --paginate -q '.[].name'
+          )
 
           if [[ ${#PKGS[@]} -eq 0 ]]; then
-            echo "No container packages found for user ${OWNER}"
+            echo "No container packages found for user $OWNER"
             exit 0
           fi
 
           for PKG in "${PKGS[@]}"; do
-            # URL-encode package name for path segments (handles names like "containers/my-image")
+            # URL-encode for path
             ENC="$(jq -rn --arg s "$PKG" '$s|@uri')"
+            echo "::group::Pruning package: $PKG"
 
-            echo "::group::Deleting ALL versions of package: $PKG"
+            # 2) delete ALL versions (tagged + untagged) in pages until none remain
+            while :; do
+              # grab up to 100 version ids
+              mapfile -t VERS < <(
+                gh api "/users/$OWNER/packages/container/$ENC/versions?per_page=100" --paginate -q '.[].id' | head -n 100
+              ) || true
 
-            # Delete ALL versions (tagged + untagged); repeat until none remain (handles pagination/races)
-            while : ; do
-              IDS=$(gh api "/users/${OWNER}/packages/container/${ENC}/versions" \
-                        --paginate -q '.[].id' || true)
-              [[ -z "${IDS}" ]] && break
-              while read -r VID; do
-                [[ -z "${VID}" ]] && continue
-                echo "DELETE version ${VID}"
-                gh api -X DELETE "/users/${OWNER}/packages/container/${ENC}/versions/${VID}" || true
-              done <<< "${IDS}"
+              [[ ${#VERS[@]} -eq 0 ]] && break
+
+              for VID in "${VERS[@]}"; do
+                echo "DELETE version $VID"
+                gh api -X DELETE "/users/$OWNER/packages/container/$ENC/versions/$VID" || true
+              done
             done
 
-            echo "Trying to delete the now-empty package itself…"
-            # Delete the package object (ignore failure if the endpoint is restricted)
-            gh api -X DELETE "/users/${OWNER}/packages/container/${ENC}" || true
+            # 3) delete the now-empty package object
+            echo "DELETE package object: $PKG"
+            gh api -X DELETE "/users/$OWNER/packages/container/$ENC" || true
 
             echo "::endgroup::"
           done
