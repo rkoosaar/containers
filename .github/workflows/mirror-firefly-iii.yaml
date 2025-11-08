@@ -1,22 +1,109 @@
-name: Mirror Firefly III to GHCR
+# .github/workflows/mirror-firefly-iii.yml
+name: Mirror Firefly III → GHCR (latest + version-x.y.z)
 
 on:
   # schedule:
-  #   - cron: "0 3 * * *" # daily
+  #   - cron: "37 4 * * *"     # daily; adjust as you like
   workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: "Upstream tag to mirror (e.g. latest or 6.1.14)"
+        required: true
+        default: "latest"
+      mirror_importer:
+        description: "Also mirror data-importer"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # <— REQUIRED for GHCR push
+      packages: write   # needed to push to GHCR
+    env:
+      OWNER: ${{ github.repository_owner }}
+      SRC_REG: docker.io
+      CORE_REPO: fireflyiii/core
+      IMPORTER_REPO: fireflyiii/data-importer
+      DEST_REG: ghcr.io
+      DEST_CORE: firefly-iii
+      DEST_IMPORTER: firefly-iii-importer
+      UPSTREAM_TAG: ${{ github.event.inputs.upstream_tag || 'latest' }}
     steps:
-      - name: Mirror core → GHCR (multi-arch)
-        uses: redhat-actions/skopeo-copy@v2
-        with:
-          src: docker://docker.io/fireflyiii/core:latest
-          dest: docker://ghcr.io/${{ github.repository_owner }}/firefly-iii:latest
-          dest-username: ${{ github.actor }}
-          dest-password: ${{ secrets.GITHUB_TOKEN }}
-          multi-arch: true
+      - name: Install skopeo & jq
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y skopeo jq
+
+      - name: Resolve upstream version (labels → fallback to digest)
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          cfg_json="$(skopeo inspect --config docker://${SRC_REG}/${CORE_REPO}:${UPSTREAM_TAG})"
+          version=$(
+            echo "$cfg_json" | jq -r '
+              .config.Labels["org.opencontainers.image.version"] //
+              .config.Labels["org.label-schema.version"] //
+              .config.Labels["version"] //
+              empty
+            ' | head -n1
+          )
+          if [[ -z "${version:-}" || "${version}" == "null" ]]; then
+            digest="$(skopeo inspect docker://${SRC_REG}/${CORE_REPO}:${UPSTREAM_TAG} | jq -r .Digest)"
+            version="sha256-$(echo "$digest" | cut -d: -f2 | cut -c1-12)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # --- Core image ---
+      - name: Mirror core → GHCR (preserve all platforms)
+        run: |
+          skopeo copy --all \
+            docker://${SRC_REG}/${CORE_REPO}:${UPSTREAM_TAG} \
+            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:${UPSTREAM_TAG} \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Tag core as latest
+        run: |
+          skopeo copy --all \
+            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:${UPSTREAM_TAG} \
+            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:latest \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Tag core as version-x.y.z
+        run: |
+          skopeo copy --all \
+            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:${UPSTREAM_TAG} \
+            docker://${DEST_REG}/${OWNER}/${DEST_CORE}:version-${{ steps.resolve.outputs.version }} \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+
+      # --- Importer (optional) ---
+      - name: Mirror importer → GHCR
+        if: ${{ github.event.inputs.mirror_importer == 'true' }}
+        run: |
+          skopeo copy --all \
+            docker://${SRC_REG}/${IMPORTER_REPO}:${UPSTREAM_TAG} \
+            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:${UPSTREAM_TAG} \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Tag importer as latest
+        if: ${{ github.event.inputs.mirror_importer == 'true' }}
+        run: |
+          skopeo copy --all \
+            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:${UPSTREAM_TAG} \
+            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:latest \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Tag importer as version-x.y.z
+        if: ${{ github.event.inputs.mirror_importer == 'true' }}
+        run: |
+          skopeo copy --all \
+            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:${UPSTREAM_TAG} \
+            docker://${DEST_REG}/${OWNER}/${DEST_IMPORTER}:version-${{ steps.resolve.outputs.version }} \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
