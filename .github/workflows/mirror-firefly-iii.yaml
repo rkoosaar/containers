@@ -1,8 +1,8 @@
 name: Mirror Firefly-III
 
 on:
-  # schedule:
-  #   - cron: "37 4 * * *"   # daily
+  schedule:
+    - cron: "37 4 * * *"   # daily
   workflow_dispatch: {}
 
 jobs:
@@ -152,3 +152,28 @@ jobs:
             copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:${tag}" "${dest_repo}" "${tag}"
             copy_if_missing "${SRC_REG}/${SRC_IMPORTER}:${tag}" "${dest_repo}" "${numeric}"
           done
+
+  # prune:
+  #   name: Weekly GHCR prune
+  #   runs-on: ubuntu-latest
+  #   needs: mirror
+  #   permissions:
+  #     packages: write
+  #   steps:
+  #     - name: Prune CORE images
+  #       uses: vlaurin/action-ghcr-prune@v0.6.0
+  #       with:
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #         organization: ${{ github.repository_owner }}
+  #         container: firefly-iii
+  #         prune-untagged: true
+  #         keep-last: 20
+
+  #     - name: Prune DATA-IMPORTER images
+  #       uses: vlaurin/action-ghcr-prune@v0.6.0
+  #       with:
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #         organization: ${{ github.repository_owner }}
+  #         container: firefly-iii-data-importer
+  #         prune-untagged: true
+  #         keep-last: 20
