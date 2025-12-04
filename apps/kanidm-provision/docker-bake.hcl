@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=github-releases depName=m00nwtchr/kanidm-provision versioning=semver
-  default = "0.0.1"
+  default = "1.3.0"
 }
 
 variable "SOURCE" {
