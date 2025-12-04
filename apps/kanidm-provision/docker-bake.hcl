@@ -19,8 +19,6 @@ group "default" {
 
 target "image" {
   inherits = ["docker-metadata-action"]
-  context = "."
-  dockerfile = "Dockerfile"
 
   args = {
     VERSION = "${VERSION}"
