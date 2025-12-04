@@ -19,11 +19,6 @@ group "default" {
 
 target "image" {
   inherits = ["docker-metadata-action"]
-
-  dockerfile = "apps/kanidm-provision/Dockerfile"
-  context    = "."
-
-
   args = {
     VERSION = "${VERSION}"
   }
