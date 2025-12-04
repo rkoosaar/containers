@@ -19,8 +19,7 @@ FROM mirror.gcr.io/alpine:3.20
 RUN apk add --no-cache bash jq curl kubectl
 COPY --from=build /src/target/release/kanidm-provision /usr/local/bin/kanidm-provision
 
-COPY ./lib.jq /lib.jq
-COPY ./entrypoint.sh /entrypoint.sh
+COPY . /
 
 USER 65532:65532
 ENTRYPOINT ["/entrypoint.sh"]
