@@ -3,7 +3,7 @@
 set -euo pipefail
 
 LABEL_SELECTOR="kanidm_config=1"
-NAMESPACE="kanidm"
+NAMESPACE="security"
 BASE='{"groups": {}, "persons": {}, "systems": {"oauth2": {}}}'
 
 SA_DIR="/var/run/secrets/kubernetes.io/serviceaccount"
