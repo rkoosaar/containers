@@ -14,7 +14,7 @@ RUN test -n "$VERSION" \
 RUN cargo build --locked --release \
     && strip target/release/kanidm-provision
 
-FROM mirror.gcr.io/alpine:3.20
+FROM mirror.gcr.io/alpine:3.22
 
 RUN apk add --no-cache bash jq curl kubectl
 COPY --from=build /src/target/release/kanidm-provision /usr/local/bin/kanidm-provision
