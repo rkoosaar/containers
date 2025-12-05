@@ -20,6 +20,7 @@ RUN apk add --no-cache bash jq curl kubectl
 COPY --from=build /src/target/release/kanidm-provision /usr/local/bin/kanidm-provision
 
 COPY . /
+COPY ./defaults/lib.jq /lib.jq
 
 USER 65532:65532
 ENTRYPOINT ["/entrypoint.sh"]
